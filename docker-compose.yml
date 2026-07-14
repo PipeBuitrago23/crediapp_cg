@@ -1,0 +1,39 @@
+services:
+  # Servicio 1: La Base de Datos
+  db:
+    image: postgres:15-alpine
+    container_name: crediapp_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_DB: crediapp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Servicio 2: Nuestro Backend de Python
+  web:
+    build: ./backend
+    container_name: crediapp_backend
+    restart: always
+    # Sobreescribe el CMD de producción del Dockerfile (start.sh, sin --reload) para
+    # mantener el hot-reload local de siempre sobre el bind-mount de abajo. Las
+    # migraciones locales siguen siendo manuales — ver Commands en CLAUDE.md.
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://admin:supersecretpassword@db:5432/crediapp_db
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

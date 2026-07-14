@@ -1,0 +1,411 @@
+import { api, ApiError, setToken, clearToken } from "./api.js";
+import { copiarImeiYVerificar } from "./imei.js";
+import { generarPdfResumen } from "./pdf.js";
+
+const STORAGE_KEY = "crediapp_vendedor_token";
+const TOTAL_PASOS = 4;
+
+const estado = {
+  paso: 1,
+  cliente: null,
+  celularNuevo: null,
+  valorVenta: null,
+  celularRetoma: null,
+  tasaInteresMensual: null,
+  cuotasTotales: null,
+  resultado: null,
+};
+
+const el = (id) => document.getElementById(id);
+
+function formatoMoneda(valor) {
+  return Number(valor).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function mostrarError(mensaje) {
+  const caja = el("mensaje-error");
+  caja.textContent = mensaje;
+  caja.classList.remove("hidden");
+}
+
+function limpiarError() {
+  const caja = el("mensaje-error");
+  caja.textContent = "";
+  caja.classList.add("hidden");
+}
+
+function mostrarLogin() {
+  el("vista-login").classList.remove("hidden");
+  el("vista-wizard").classList.add("hidden");
+}
+
+function mostrarWizard() {
+  el("vista-login").classList.add("hidden");
+  el("vista-wizard").classList.remove("hidden");
+}
+
+async function manejarLlamada(fn) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      cerrarSesion();
+      mostrarError("Tu sesión expiró. Vuelve a iniciar sesión.");
+    } else {
+      mostrarError(error.message);
+    }
+    return null;
+  }
+}
+
+// ---------- Sesión ----------
+
+async function iniciarSesion() {
+  limpiarError();
+  const email = el("login-email").value.trim();
+  const password = el("login-password").value;
+  if (!email || !password) {
+    mostrarError("Ingresa email y contraseña.");
+    return;
+  }
+
+  // No pasa por manejarLlamada: un 401 acá es "credenciales inválidas", no una
+  // sesión expirada — mostrar ese mensaje real en vez del genérico de sesión.
+  try {
+    const respuesta = await api.post("/auth/vendedor/login", { email, password });
+    localStorage.setItem(STORAGE_KEY, respuesta.access_token);
+    setToken(respuesta.access_token);
+    mostrarWizard();
+    mostrarPaso(1);
+  } catch (error) {
+    mostrarError(error.message);
+  }
+}
+
+function cerrarSesion() {
+  clearToken();
+  localStorage.removeItem(STORAGE_KEY);
+  mostrarLogin();
+}
+
+function mostrarPaso(numero) {
+  document.querySelectorAll("[data-step]").forEach((seccion) => {
+    seccion.classList.toggle("hidden", Number(seccion.dataset.step) !== numero);
+  });
+  document.querySelectorAll("[data-step-indicator]").forEach((item) => {
+    const activo = Number(item.dataset.stepIndicator) === numero;
+    item.classList.toggle("text-indigo-700", activo);
+    item.classList.toggle("font-bold", activo);
+    item.classList.toggle("text-slate-400", !activo);
+  });
+
+  el("btn-atras").disabled = numero === 1;
+  el("btn-siguiente").textContent = numero === TOTAL_PASOS ? "Generar Crédito" : "Siguiente";
+  el("btn-siguiente").classList.toggle("hidden", numero === TOTAL_PASOS && Boolean(estado.resultado));
+
+  limpiarError();
+}
+
+// ---------- Paso 1: Cliente ----------
+
+async function buscarCliente() {
+  const documento = el("cliente-documento").value.trim();
+  if (!documento) {
+    mostrarError("Ingresa un número de documento para buscar.");
+    return;
+  }
+  limpiarError();
+
+  const resultados = await manejarLlamada(() => api.get(`/clientes?documento=${encodeURIComponent(documento)}`));
+  if (!resultados) return;
+
+  if (resultados.length > 0) {
+    const cliente = resultados[0];
+    estado.cliente = cliente;
+    el("cliente-nombre").value = cliente.nombre;
+    el("cliente-telefono").value = cliente.telefono;
+    el("cliente-email").value = cliente.email;
+    el("cliente-estado").textContent = "Cliente encontrado en el sistema.";
+  } else {
+    estado.cliente = null;
+    el("cliente-estado").textContent = "No existe todavía: se creará un cliente nuevo con estos datos.";
+  }
+}
+
+async function resolverCliente() {
+  const documento = el("cliente-documento").value.trim();
+  const nombre = el("cliente-nombre").value.trim();
+  const telefono = el("cliente-telefono").value.trim();
+  const email = el("cliente-email").value.trim();
+
+  if (!documento || !nombre || !telefono || !email) {
+    mostrarError("Completa todos los datos del cliente.");
+    return false;
+  }
+
+  if (estado.cliente && estado.cliente.documento === documento) {
+    return true;
+  }
+
+  const cliente = await manejarLlamada(() => api.post("/clientes", { nombre, documento, telefono, email }));
+  if (!cliente) return false;
+
+  estado.cliente = cliente;
+  return true;
+}
+
+// ---------- Paso 2: Equipo Nuevo ----------
+
+async function cargarInventarioDisponible() {
+  const disponibles = await manejarLlamada(() => api.get("/celulares?estado=Disponible"));
+  if (!disponibles) return;
+
+  const select = el("equipo-select");
+  select.innerHTML = '<option value="">-- Selecciona un equipo disponible --</option>';
+  disponibles.forEach((celular) => {
+    const opcion = document.createElement("option");
+    opcion.value = celular.id;
+    opcion.textContent = `${celular.marca} ${celular.referencia} - IMEI ${celular.imei}`;
+    opcion.dataset.celular = JSON.stringify(celular);
+    select.appendChild(opcion);
+  });
+}
+
+function seleccionarEquipoNuevo() {
+  const select = el("equipo-select");
+  const opcion = select.selectedOptions[0];
+  if (!opcion || !opcion.value) {
+    estado.celularNuevo = null;
+    el("equipo-detalle").classList.add("hidden");
+    return;
+  }
+  const celular = JSON.parse(opcion.dataset.celular);
+  estado.celularNuevo = celular;
+  el("equipo-detalle-imei").textContent = celular.imei;
+  el("equipo-detalle-costo").textContent = formatoMoneda(celular.valor_costo);
+  el("equipo-detalle-comercial").textContent = formatoMoneda(celular.valor_comercial);
+  el("equipo-detalle").classList.remove("hidden");
+  if (!el("equipo-valor-venta").value) {
+    el("equipo-valor-venta").value = celular.valor_comercial;
+  }
+  actualizarPreviewMonto();
+}
+
+function validarPaso2() {
+  if (!estado.celularNuevo) {
+    mostrarError("Selecciona el equipo nuevo del inventario.");
+    return false;
+  }
+  const valorVenta = Number(el("equipo-valor-venta").value);
+  if (!valorVenta || valorVenta <= 0) {
+    mostrarError("Ingresa un valor de venta válido.");
+    return false;
+  }
+  estado.valorVenta = valorVenta;
+  return true;
+}
+
+// ---------- Paso 3: Liquidación ----------
+
+function actualizarPreviewMonto() {
+  const valorVenta = Number(el("equipo-valor-venta").value || 0);
+  const abonoEfectivo = Number(el("abono-efectivo").value || 0);
+  const abonoTransferencia = Number(el("abono-transferencia").value || 0);
+  const valorRetoma = el("switch-retoma").checked ? Number(el("retoma-valor-comercial").value || 0) : 0;
+  const monto = valorVenta - abonoEfectivo - abonoTransferencia - valorRetoma;
+  el("monto-financiar-preview").textContent = `$${formatoMoneda(Math.max(monto, 0))}`;
+}
+
+function alternarRetoma() {
+  const activo = el("switch-retoma").checked;
+  el("retoma-form").classList.toggle("hidden", !activo);
+  actualizarPreviewMonto();
+}
+
+async function resolverRetoma() {
+  if (!el("switch-retoma").checked) {
+    estado.celularRetoma = null;
+    return true;
+  }
+
+  if (estado.celularRetoma) {
+    return true;
+  }
+
+  const marca = el("retoma-marca").value.trim();
+  const referencia = el("retoma-referencia").value.trim();
+  const imei = el("retoma-imei").value.trim();
+  const valorCosto = Number(el("retoma-valor-costo").value);
+  const valorComercial = Number(el("retoma-valor-comercial").value);
+
+  if (!marca || !referencia || !imei || !valorCosto || !valorComercial) {
+    mostrarError("Completa todos los datos del equipo en retoma.");
+    return false;
+  }
+
+  const celular = await manejarLlamada(() =>
+    api.post("/celulares", {
+      marca,
+      referencia,
+      imei,
+      valor_costo: valorCosto,
+      valor_comercial: valorComercial,
+    })
+  );
+  if (!celular) return false;
+
+  estado.celularRetoma = celular;
+  return true;
+}
+
+// ---------- Paso 4: Crédito ----------
+
+function validarPaso4() {
+  const tasaRaw = el("credito-tasa").value;
+  const tasa = Number(tasaRaw);
+  const cuotas = Number(el("credito-cuotas").value);
+
+  if (tasaRaw === "" || Number.isNaN(tasa) || tasa < 0) {
+    mostrarError("Ingresa una tasa de interés mensual válida.");
+    return false;
+  }
+  if (!cuotas || cuotas < 1) {
+    mostrarError("Ingresa un número de cuotas válido.");
+    return false;
+  }
+  estado.tasaInteresMensual = tasa;
+  estado.cuotasTotales = cuotas;
+  return true;
+}
+
+async function generarCredito() {
+  const payload = {
+    cliente_id: estado.cliente.id,
+    celular_nuevo_id: estado.celularNuevo.id,
+    valor_venta: estado.valorVenta,
+    valor_abono_efectivo: Number(el("abono-efectivo").value || 0),
+    valor_abono_transferencia: Number(el("abono-transferencia").value || 0),
+    valor_retoma_id: estado.celularRetoma ? estado.celularRetoma.id : null,
+    tasa_interes_mensual: estado.tasaInteresMensual,
+    cuotas_totales: estado.cuotasTotales,
+  };
+
+  const resultado = await manejarLlamada(() => api.post("/ventas", payload));
+  if (!resultado) return;
+
+  estado.resultado = resultado;
+  renderizarResultado(resultado);
+}
+
+function renderizarResultado(resultado) {
+  el("resultado-monto-financiado").textContent = formatoMoneda(resultado.monto_financiado);
+  el("resultado-cuota-fija").textContent = formatoMoneda(resultado.valor_cuota_fija);
+
+  el("tabla-cuotas").innerHTML = resultado.cuotas
+    .map(
+      (cuota) => `
+        <tr class="border-b border-slate-100">
+          <td class="p-2">${cuota.numero_cuota}</td>
+          <td class="p-2">${cuota.fecha_vencimiento}</td>
+          <td class="p-2">$${formatoMoneda(cuota.monto_capital)}</td>
+          <td class="p-2">$${formatoMoneda(cuota.monto_interes)}</td>
+          <td class="p-2">$${formatoMoneda(Number(cuota.monto_capital) + Number(cuota.monto_interes))}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  el("resultado-credito").classList.remove("hidden");
+  el("btn-siguiente").classList.add("hidden");
+  el("btn-atras").disabled = true;
+}
+
+// ---------- Navegación ----------
+
+async function avanzarPaso() {
+  limpiarError();
+
+  if (estado.paso === 1) {
+    if (!(await resolverCliente())) return;
+  } else if (estado.paso === 2) {
+    if (!validarPaso2()) return;
+  } else if (estado.paso === 3) {
+    if (!(await resolverRetoma())) return;
+  } else if (estado.paso === 4) {
+    if (!validarPaso4()) return;
+    await generarCredito();
+    return;
+  }
+
+  estado.paso += 1;
+  mostrarPaso(estado.paso);
+  if (estado.paso === 2) {
+    cargarInventarioDisponible();
+  }
+}
+
+function retrocederPaso() {
+  if (estado.paso === 1) return;
+  estado.paso -= 1;
+  mostrarPaso(estado.paso);
+}
+
+function reiniciar() {
+  Object.assign(estado, {
+    paso: 1,
+    cliente: null,
+    celularNuevo: null,
+    valorVenta: null,
+    celularRetoma: null,
+    tasaInteresMensual: null,
+    cuotasTotales: null,
+    resultado: null,
+  });
+
+  document.querySelectorAll("input").forEach((input) => {
+    if (input.type === "checkbox") input.checked = false;
+    else input.value = "";
+  });
+  el("abono-efectivo").value = 0;
+  el("abono-transferencia").value = 0;
+  el("cliente-estado").textContent = "";
+  el("equipo-detalle").classList.add("hidden");
+  el("retoma-form").classList.add("hidden");
+  el("resultado-credito").classList.add("hidden");
+  el("btn-siguiente").classList.remove("hidden");
+
+  mostrarPaso(1);
+}
+
+// ---------- Inicialización ----------
+
+document.addEventListener("DOMContentLoaded", () => {
+  el("btn-login").addEventListener("click", iniciarSesion);
+  el("btn-logout").addEventListener("click", cerrarSesion);
+  el("btn-buscar-cliente").addEventListener("click", buscarCliente);
+  el("equipo-select").addEventListener("change", seleccionarEquipoNuevo);
+  el("btn-verificar-imei").addEventListener("click", () => {
+    if (estado.celularNuevo) copiarImeiYVerificar(estado.celularNuevo.imei);
+  });
+  el("btn-verificar-imei-retoma").addEventListener("click", () =>
+    copiarImeiYVerificar(el("retoma-imei").value.trim())
+  );
+  el("switch-retoma").addEventListener("change", alternarRetoma);
+  el("btn-atras").addEventListener("click", retrocederPaso);
+  el("btn-siguiente").addEventListener("click", avanzarPaso);
+  el("btn-descargar-pdf").addEventListener("click", () => generarPdfResumen(estado, estado.resultado));
+  el("btn-nueva-venta").addEventListener("click", reiniciar);
+
+  ["equipo-valor-venta", "abono-efectivo", "abono-transferencia", "retoma-valor-comercial"].forEach((id) => {
+    el(id).addEventListener("input", actualizarPreviewMonto);
+  });
+
+  const tokenGuardado = localStorage.getItem(STORAGE_KEY);
+  if (tokenGuardado) {
+    setToken(tokenGuardado);
+    mostrarWizard();
+    mostrarPaso(1);
+  } else {
+    mostrarLogin();
+  }
+});
