@@ -15,11 +15,14 @@ router = APIRouter(prefix="/celulares", tags=["celulares"], dependencies=[Depend
 @router.get("", response_model=list[CelularRead])
 async def listar_celulares(
     estado: Optional[str] = Query(default=None),
+    limit: Optional[int] = Query(default=None, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Celular)
     if estado:
         query = query.where(Celular.estado == estado)
+    if limit is not None:
+        query = query.order_by(Celular.id.desc()).limit(limit)
     resultado = await db.scalars(query)
     return resultado.all()
 

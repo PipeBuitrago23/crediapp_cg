@@ -1,6 +1,6 @@
 input:focus, select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.4);
+  box-shadow: 0 0 0 2px rgb(0 86 191 / 0.4);
 }
 
 input[type="number"]::-webkit-inner-spin-button {

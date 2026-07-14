@@ -22,11 +22,13 @@ function limpiarError() {
 function mostrarLogin() {
   el("vista-login").classList.remove("hidden");
   el("vista-panel").classList.add("hidden");
+  el("btn-abrir-modal-cliente").classList.add("hidden");
 }
 
 function mostrarPanel() {
   el("vista-login").classList.add("hidden");
   el("vista-panel").classList.remove("hidden");
+  el("btn-abrir-modal-cliente").classList.remove("hidden");
 }
 
 async function manejarLlamada(fn) {
@@ -64,6 +66,8 @@ async function iniciarSesion() {
     cargarDashboard();
     cargarBanners();
     cargarVendedores();
+    cargarClientesRecientes();
+    cargarCelularesDisponibles();
   } catch (error) {
     mostrarError(error.message);
   }
@@ -148,7 +152,7 @@ function renderizarCreditos(creditos) {
               <td class="p-2">
                 ${
                   cuota.estado === "Pendiente"
-                    ? `<button type="button" class="btn-pagar-cuota px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs" data-credito="${credito.id}" data-numero="${cuota.numero_cuota}">Marcar pagada</button>`
+                    ? `<button type="button" class="btn-pagar-cuota px-2 py-1 rounded bg-accent hover:bg-accent-dark text-white text-xs" data-credito="${credito.id}" data-numero="${cuota.numero_cuota}">Marcar pagada</button>`
                     : ""
                 }
               </td>
@@ -157,10 +161,12 @@ function renderizarCreditos(creditos) {
         )
         .join("");
 
+      const estadoBadgeClase = credito.estado === "Activo" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent-dark";
+
       return `
         <div class="rounded-lg border border-slate-200 p-4 space-y-2">
           <p class="font-semibold">${credito.cliente.nombre} (${credito.cliente.documento}) — ${credito.equipo.marca} ${credito.equipo.referencia}</p>
-          <p class="text-sm text-slate-500">Crédito #${credito.id} — Estado: ${credito.estado} — Tasa: ${credito.tasa_interes_mensual}% — Vendido por: ${credito.vendedor ? credito.vendedor.nombre : "Sin asignar"}</p>
+          <p class="text-sm text-slate-500">Crédito #${credito.id} — <span class="px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClase}">${credito.estado}</span> — Tasa: ${credito.tasa_interes_mensual}% — Vendido por: ${credito.vendedor ? credito.vendedor.nombre : "Sin asignar"}</p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -187,6 +193,76 @@ async function pagarCuota(creditoId, numeroCuota) {
   if (!resultado) return;
   await ejecutarUltimaBusqueda();
   await cargarDashboard();
+}
+
+// ---------- Clientes recientes / celulares disponibles ----------
+
+const LIMITE_LISTAS = 15;
+
+async function cargarClientesRecientes() {
+  const clientes = await manejarLlamada(() => api.get(`/clientes?limit=${LIMITE_LISTAS}`));
+  if (!clientes) return;
+
+  if (clientes.length === 0) {
+    el("lista-clientes-recientes").innerHTML = '<p class="text-sm text-slate-500">No hay clientes registrados.</p>';
+    return;
+  }
+
+  el("lista-clientes-recientes").innerHTML = clientes
+    .map(
+      (cliente) => `
+        <div class="rounded-lg border border-slate-200 p-3 text-sm">
+          <p class="font-medium">${cliente.nombre} — ${cliente.documento}</p>
+          <p class="text-slate-500">${cliente.telefono} · ${cliente.email}</p>
+        </div>
+      `
+    )
+    .join("");
+}
+
+async function cargarCelularesDisponibles() {
+  const celulares = await manejarLlamada(() => api.get(`/celulares?estado=Disponible&limit=${LIMITE_LISTAS}`));
+  if (!celulares) return;
+
+  if (celulares.length === 0) {
+    el("lista-celulares-disponibles").innerHTML = '<p class="text-sm text-slate-500">No hay celulares disponibles.</p>';
+    return;
+  }
+
+  el("lista-celulares-disponibles").innerHTML = celulares
+    .map(
+      (celular) => `
+        <div class="rounded-lg border border-slate-200 p-3 text-sm">
+          <p class="font-medium">${celular.marca} ${celular.referencia}</p>
+          <p class="text-slate-500">IMEI ${celular.imei} · $${formatoMoneda(celular.valor_comercial)}</p>
+        </div>
+      `
+    )
+    .join("");
+}
+
+async function crearCelular() {
+  limpiarError();
+  const marca = el("celular-marca").value.trim();
+  const referencia = el("celular-referencia").value.trim();
+  const imei = el("celular-imei").value.trim();
+  const valor_costo = Number(el("celular-costo").value);
+  const valor_comercial = Number(el("celular-comercial").value);
+
+  if (!marca || !referencia || !imei || !valor_costo || !valor_comercial) {
+    mostrarError("Completa todos los campos del celular.");
+    return;
+  }
+
+  const celular = await manejarLlamada(() =>
+    api.post("/celulares", { marca, referencia, imei, valor_costo, valor_comercial })
+  );
+  if (!celular) return;
+
+  ["celular-marca", "celular-referencia", "celular-imei", "celular-costo", "celular-comercial"].forEach(
+    (id) => (el(id).value = "")
+  );
+  await cargarCelularesDisponibles();
 }
 
 // ---------- Banners ----------
@@ -308,6 +384,65 @@ async function alternarVendedor(id, activoActual) {
   await cargarVendedores();
 }
 
+// ---------- Crear cliente (modal) ----------
+
+function mostrarErrorModalCliente(mensaje) {
+  el("modal-cliente-exito").classList.add("hidden");
+  const caja = el("modal-cliente-error");
+  caja.textContent = mensaje;
+  caja.classList.remove("hidden");
+}
+
+function limpiarMensajesModalCliente() {
+  el("modal-cliente-error").classList.add("hidden");
+  el("modal-cliente-exito").classList.add("hidden");
+}
+
+function abrirModalCliente() {
+  limpiarMensajesModalCliente();
+  ["modal-cliente-nombre", "modal-cliente-documento", "modal-cliente-telefono", "modal-cliente-email"].forEach(
+    (id) => (el(id).value = "")
+  );
+  el("modal-cliente-nuevo").classList.remove("hidden");
+}
+
+function cerrarModalCliente() {
+  el("modal-cliente-nuevo").classList.add("hidden");
+}
+
+async function guardarClienteNuevo() {
+  limpiarMensajesModalCliente();
+  const nombre = el("modal-cliente-nombre").value.trim();
+  const documento = el("modal-cliente-documento").value.trim();
+  const telefono = el("modal-cliente-telefono").value.trim();
+  const email = el("modal-cliente-email").value.trim();
+
+  if (!nombre || !documento || !telefono || !email) {
+    mostrarErrorModalCliente("Completa todos los campos del cliente.");
+    return;
+  }
+
+  try {
+    await api.post("/clientes", { nombre, documento, telefono, email });
+    el("modal-cliente-exito").textContent = "Cliente creado exitosamente.";
+    el("modal-cliente-exito").classList.remove("hidden");
+    await cargarClientesRecientes();
+    ["modal-cliente-nombre", "modal-cliente-documento", "modal-cliente-telefono", "modal-cliente-email"].forEach(
+      (id) => (el(id).value = "")
+    );
+    setTimeout(cerrarModalCliente, 1500);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      // Sesión expirada: cerrar el modal también, o el login quedaría tapado detrás.
+      cerrarModalCliente();
+      cerrarSesion();
+      mostrarError("Tu sesión expiró. Vuelve a iniciar sesión.");
+    } else {
+      mostrarErrorModalCliente(error.message);
+    }
+  }
+}
+
 // ---------- Inicialización ----------
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -317,6 +452,10 @@ document.addEventListener("DOMContentLoaded", () => {
   el("btn-buscar-imei").addEventListener("click", buscarPorImei);
   el("btn-crear-banner").addEventListener("click", crearBanner);
   el("btn-crear-vendedor").addEventListener("click", crearVendedor);
+  el("btn-crear-celular").addEventListener("click", crearCelular);
+  el("btn-abrir-modal-cliente").addEventListener("click", abrirModalCliente);
+  el("btn-cancelar-modal-cliente").addEventListener("click", cerrarModalCliente);
+  el("btn-guardar-modal-cliente").addEventListener("click", guardarClienteNuevo);
 
   el("lista-vendedores").addEventListener("click", (evento) => {
     const boton = evento.target.closest(".btn-toggle-vendedor");
@@ -349,6 +488,8 @@ document.addEventListener("DOMContentLoaded", () => {
     cargarDashboard();
     cargarBanners();
     cargarVendedores();
+    cargarClientesRecientes();
+    cargarCelularesDisponibles();
   } else {
     mostrarLogin();
   }

@@ -117,17 +117,19 @@ async function cargarMisCreditos() {
   el("lista-creditos").innerHTML = creditos
     .map((credito) => {
       const proxima = credito.proxima_cuota;
+      const estadoBadgeClase = credito.estado === "Activo" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent-dark";
+
       return `
-        <div class="bg-white rounded-2xl shadow p-5 space-y-3">
-          <p class="font-semibold">Crédito #${credito.id} — ${credito.estado}</p>
+        <div class="bg-white rounded-lg shadow p-5 space-y-3">
+          <p class="font-semibold">Crédito #${credito.id} — <span class="px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClase}">${credito.estado}</span></p>
           <p class="text-sm text-slate-500">Progreso: ${credito.progreso_pagadas} de ${credito.progreso_total} cuotas pagadas</p>
           ${
             proxima
-              ? `<div class="rounded-lg bg-indigo-50 border border-indigo-100 p-3 text-sm">
+              ? `<div class="rounded-lg bg-primary/5 border border-primary/20 p-3 text-sm">
                    <p>Próxima cuota (#${proxima.numero_cuota}): <strong>$${formatoMoneda(Number(proxima.monto_capital) + Number(proxima.monto_interes))}</strong></p>
                    <p>Vence: ${proxima.fecha_vencimiento}</p>
                  </div>`
-              : '<p class="text-sm text-green-700 font-medium">Este crédito ya está totalmente pagado.</p>'
+              : '<p class="text-sm text-accent-dark font-medium">Este crédito ya está totalmente pagado.</p>'
           }
           ${
             credito.estado === "Activo"
@@ -146,11 +148,11 @@ async function cotizarLiquidacion(creditoId) {
   const contenedor = document.querySelector(`[data-credito-resultado="${creditoId}"]`);
   if (!resultado || !contenedor) return;
 
+  // Solo se muestra el total: sin desglose de capital/interés, para que el
+  // cliente vea un número claro y directo, no un detalle técnico de cobranza.
   contenedor.innerHTML = `
-    <div class="rounded-lg bg-green-50 border border-green-200 p-3 mt-2">
-      <p>Saldo de capital pendiente: $${formatoMoneda(resultado.saldo_capital_pendiente)}</p>
-      <p>Interés del mes en curso: $${formatoMoneda(resultado.interes_mes_actual)}</p>
-      <p class="font-semibold">Total a pagar hoy: $${formatoMoneda(resultado.total_a_pagar)}</p>
+    <div class="rounded-lg bg-accent/10 border border-accent/30 p-3 mt-2">
+      <p class="font-semibold text-accent-dark">Monto total para cancelar tu deuda hoy: $${formatoMoneda(resultado.total_a_pagar)}</p>
     </div>
   `;
 }

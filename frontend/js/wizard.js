@@ -94,14 +94,20 @@ function mostrarPaso(numero) {
   });
   document.querySelectorAll("[data-step-indicator]").forEach((item) => {
     const activo = Number(item.dataset.stepIndicator) === numero;
-    item.classList.toggle("text-indigo-700", activo);
+    item.classList.toggle("text-primary", activo);
     item.classList.toggle("font-bold", activo);
     item.classList.toggle("text-slate-400", !activo);
   });
 
   el("btn-atras").disabled = numero === 1;
-  el("btn-siguiente").textContent = numero === TOTAL_PASOS ? "Generar Crédito" : "Siguiente";
-  el("btn-siguiente").classList.toggle("hidden", numero === TOTAL_PASOS && Boolean(estado.resultado));
+  const esUltimoPaso = numero === TOTAL_PASOS;
+  el("btn-siguiente").textContent = esUltimoPaso ? "Generar Crédito" : "Siguiente";
+  el("btn-siguiente").classList.toggle("hidden", esUltimoPaso && Boolean(estado.resultado));
+  // El último paso finaliza la venta — usa el verde de acento en vez del azul primario de navegación.
+  el("btn-siguiente").classList.toggle("bg-primary", !esUltimoPaso);
+  el("btn-siguiente").classList.toggle("hover:bg-primary-dark", !esUltimoPaso);
+  el("btn-siguiente").classList.toggle("bg-accent", esUltimoPaso);
+  el("btn-siguiente").classList.toggle("hover:bg-accent-dark", esUltimoPaso);
 
   limpiarError();
 }
@@ -189,6 +195,76 @@ function seleccionarEquipoNuevo() {
     el("equipo-valor-venta").value = celular.valor_comercial;
   }
   actualizarPreviewMonto();
+}
+
+function agregarCelularAlSelect(celular) {
+  const select = el("equipo-select");
+  const opcion = document.createElement("option");
+  opcion.value = celular.id;
+  opcion.textContent = `${celular.marca} ${celular.referencia} - IMEI ${celular.imei}`;
+  opcion.dataset.celular = JSON.stringify(celular);
+  select.appendChild(opcion);
+  select.value = celular.id;
+  seleccionarEquipoNuevo();
+}
+
+function mostrarErrorModalCelular(mensaje) {
+  const caja = el("modal-celular-error");
+  caja.textContent = mensaje;
+  caja.classList.remove("hidden");
+}
+
+function limpiarErrorModalCelular() {
+  const caja = el("modal-celular-error");
+  caja.textContent = "";
+  caja.classList.add("hidden");
+}
+
+function abrirModalCelular() {
+  limpiarErrorModalCelular();
+  ["modal-celular-marca", "modal-celular-referencia", "modal-celular-imei", "modal-celular-costo", "modal-celular-comercial"].forEach(
+    (id) => (el(id).value = "")
+  );
+  el("modal-celular-nuevo").classList.remove("hidden");
+}
+
+function cerrarModalCelular() {
+  el("modal-celular-nuevo").classList.add("hidden");
+}
+
+async function guardarCelularNuevo() {
+  limpiarErrorModalCelular();
+  const marca = el("modal-celular-marca").value.trim();
+  const referencia = el("modal-celular-referencia").value.trim();
+  const imei = el("modal-celular-imei").value.trim();
+  const valorCosto = Number(el("modal-celular-costo").value);
+  const valorComercial = Number(el("modal-celular-comercial").value);
+
+  if (!marca || !referencia || !imei || !valorCosto || !valorComercial) {
+    mostrarErrorModalCelular("Completa todos los campos del celular.");
+    return;
+  }
+
+  try {
+    const celular = await api.post("/celulares", {
+      marca,
+      referencia,
+      imei,
+      valor_costo: valorCosto,
+      valor_comercial: valorComercial,
+    });
+    agregarCelularAlSelect(celular);
+    cerrarModalCelular();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      // Sesión expirada: cerrar el modal también, o el login quedaría tapado detrás.
+      cerrarModalCelular();
+      cerrarSesion();
+      mostrarError("Tu sesión expiró. Vuelve a iniciar sesión.");
+    } else {
+      mostrarErrorModalCelular(error.message);
+    }
+  }
 }
 
 function validarPaso2() {
@@ -384,6 +460,9 @@ document.addEventListener("DOMContentLoaded", () => {
   el("btn-logout").addEventListener("click", cerrarSesion);
   el("btn-buscar-cliente").addEventListener("click", buscarCliente);
   el("equipo-select").addEventListener("change", seleccionarEquipoNuevo);
+  el("btn-abrir-modal-celular").addEventListener("click", abrirModalCelular);
+  el("btn-cancelar-modal-celular").addEventListener("click", cerrarModalCelular);
+  el("btn-guardar-modal-celular").addEventListener("click", guardarCelularNuevo);
   el("btn-verificar-imei").addEventListener("click", () => {
     if (estado.celularNuevo) copiarImeiYVerificar(estado.celularNuevo.imei);
   });
