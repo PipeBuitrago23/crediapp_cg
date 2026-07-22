@@ -9,9 +9,12 @@ load_dotenv()
 DATABASE_URL = os.environ["DATABASE_URL"]
 
 # El plugin de Postgres de Railway (y otros proveedores) entrega una URL con el
-# scheme sync por defecto (postgresql://); reescribirla acá evita que el despliegue
-# se rompa por un driver equivocado si nadie se acuerda de agregar +asyncpg a mano.
-if DATABASE_URL.startswith("postgresql://"):
+# scheme sync por defecto (postgresql:// o, en proveedores estilo Heroku, postgres://);
+# reescribirla acá evita que el despliegue se rompa por un driver equivocado si nadie
+# se acuerda de agregar +asyncpg a mano.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)

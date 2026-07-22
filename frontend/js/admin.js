@@ -4,6 +4,7 @@ import { formatoMoneda } from "./format.js";
 const STORAGE_KEY = "crediapp_admin_token";
 
 let ultimaBusqueda = null; // { tipo: "documento" | "imei", valor: string }
+let creditosActivosCache = [];
 
 const el = (id) => document.getElementById(id);
 
@@ -85,9 +86,68 @@ async function cargarDashboard() {
   const metrics = await manejarLlamada(() => api.get("/admin/dashboard"));
   if (!metrics) return;
 
-  el("kpi-total-colocado").textContent = `$${formatoMoneda(metrics.monto_total_colocado)}`;
-  el("kpi-pendiente-cobrar").textContent = `$${formatoMoneda(metrics.monto_pendiente_cobrar)}`;
-  el("kpi-intereses").textContent = `$${formatoMoneda(metrics.intereses_generados_recaudados)}`;
+  el("kpi-creditos-activos").textContent = metrics.creditos_activos_count;
+  el("kpi-monto-colocado").textContent = `$${formatoMoneda(metrics.monto_colocado_capital)}`;
+  el("kpi-monto-colocado-intereses").textContent = `Con intereses: $${formatoMoneda(metrics.monto_colocado_con_intereses)}`;
+  el("kpi-pendiente-semana").textContent = `$${formatoMoneda(metrics.pendiente_cobrar_semana)}`;
+  el("kpi-pendiente-mes").textContent = `$${formatoMoneda(metrics.pendiente_cobrar_mes)}`;
+
+  creditosActivosCache = metrics.lista_creditos;
+  el("buscar-tabla-creditos").value = "";
+  renderizarTablaCreditosActivos(creditosActivosCache);
+}
+
+// ---------- Tabla de créditos activos ----------
+
+function renderizarTablaCreditosActivos(lista) {
+  const cuerpo = el("tabla-creditos-activos-body");
+
+  if (lista.length === 0) {
+    cuerpo.innerHTML = '<tr><td colspan="8" class="p-3 text-sm text-slate-500 text-center">No hay créditos activos.</td></tr>';
+    return;
+  }
+
+  cuerpo.innerHTML = lista
+    .map(
+      (credito) => `
+        <tr class="border-b border-slate-100">
+          <td class="p-2">
+            <p class="font-medium">${credito.cliente_nombre}</p>
+            <p class="text-xs text-slate-500">${credito.cliente_documento}</p>
+          </td>
+          <td class="p-2">${credito.equipo_nombre}</td>
+          <td class="p-2">$${formatoMoneda(credito.monto_inicial_financiado)}</td>
+          <td class="p-2">$${formatoMoneda(credito.valor_cuota_mensual)}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">${credito.cuotas_pagadas} / ${credito.cuotas_totales}</span></td>
+          <td class="p-2">$${formatoMoneda(credito.saldo_restante_capital)}</td>
+          <td class="p-2">${credito.proxima_fecha_pago ?? "—"}</td>
+          <td class="p-2">
+            <button type="button" class="btn-ver-detalle-credito px-3 py-1.5 rounded bg-accent hover:bg-accent-dark text-white text-xs font-medium" data-documento="${credito.cliente_documento}">Ver Detalle</button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function filtrarTablaCreditosActivos() {
+  const termino = el("buscar-tabla-creditos").value.trim().toLowerCase();
+  if (!termino) {
+    renderizarTablaCreditosActivos(creditosActivosCache);
+    return;
+  }
+  const filtrados = creditosActivosCache.filter(
+    (credito) =>
+      credito.cliente_nombre.toLowerCase().includes(termino) ||
+      credito.cliente_documento.toLowerCase().includes(termino)
+  );
+  renderizarTablaCreditosActivos(filtrados);
+}
+
+function verDetalleCredito(documento) {
+  el("buscar-documento").value = documento;
+  buscarPorDocumento();
+  el("resultados-creditos").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ---------- Buscador de créditos ----------
@@ -199,9 +259,13 @@ async function pagarCuota(creditoId, numeroCuota) {
 
 const LIMITE_LISTAS = 15;
 
+let clientesRecientesCache = [];
+
 async function cargarClientesRecientes() {
   const clientes = await manejarLlamada(() => api.get(`/clientes?limit=${LIMITE_LISTAS}`));
   if (!clientes) return;
+
+  clientesRecientesCache = clientes;
 
   if (clientes.length === 0) {
     el("lista-clientes-recientes").innerHTML = '<p class="text-sm text-slate-500">No hay clientes registrados.</p>';
@@ -211,13 +275,33 @@ async function cargarClientesRecientes() {
   el("lista-clientes-recientes").innerHTML = clientes
     .map(
       (cliente) => `
-        <div class="rounded-lg border border-slate-200 p-3 text-sm">
-          <p class="font-medium">${cliente.nombre} — ${cliente.documento}</p>
-          <p class="text-slate-500">${cliente.telefono} · ${cliente.email}</p>
+        <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+          <div>
+            <p class="font-medium">${cliente.nombre} — ${cliente.documento}</p>
+            <p class="text-slate-500">${cliente.telefono} · ${cliente.email}</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button type="button" class="btn-editar-cliente px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-xs font-medium" data-id="${cliente.id}">Editar</button>
+            <button type="button" class="btn-eliminar-cliente px-2 py-1 rounded bg-red-100 hover:bg-red-200 text-red-700 text-xs font-medium" data-id="${cliente.id}">Eliminar</button>
+          </div>
         </div>
       `
     )
     .join("");
+}
+
+async function eliminarCliente(id) {
+  limpiarError();
+  const cliente = clientesRecientesCache.find((c) => c.id === id);
+  const nombre = cliente ? cliente.nombre : `#${id}`;
+  if (!window.confirm(`¿Eliminar al cliente ${nombre}? Esta acción no se puede deshacer.`)) return;
+
+  const resultado = await manejarLlamada(async () => {
+    await api.delete(`/clientes/${id}`);
+    return true;
+  });
+  if (!resultado) return;
+  await cargarClientesRecientes();
 }
 
 async function cargarCelularesDisponibles() {
@@ -398,11 +482,29 @@ function limpiarMensajesModalCliente() {
   el("modal-cliente-exito").classList.add("hidden");
 }
 
+let clienteEditandoId = null;
+
 function abrirModalCliente() {
+  clienteEditandoId = null;
   limpiarMensajesModalCliente();
+  el("modal-cliente-titulo").textContent = "Crear Nuevo Cliente";
   ["modal-cliente-nombre", "modal-cliente-documento", "modal-cliente-telefono", "modal-cliente-email"].forEach(
     (id) => (el(id).value = "")
   );
+  el("modal-cliente-nuevo").classList.remove("hidden");
+}
+
+function abrirModalEditarCliente(id) {
+  const cliente = clientesRecientesCache.find((c) => c.id === id);
+  if (!cliente) return;
+
+  clienteEditandoId = id;
+  limpiarMensajesModalCliente();
+  el("modal-cliente-titulo").textContent = "Editar Cliente";
+  el("modal-cliente-nombre").value = cliente.nombre;
+  el("modal-cliente-documento").value = cliente.documento;
+  el("modal-cliente-telefono").value = cliente.telefono;
+  el("modal-cliente-email").value = cliente.email;
   el("modal-cliente-nuevo").classList.remove("hidden");
 }
 
@@ -410,7 +512,7 @@ function cerrarModalCliente() {
   el("modal-cliente-nuevo").classList.add("hidden");
 }
 
-async function guardarClienteNuevo() {
+async function guardarCliente() {
   limpiarMensajesModalCliente();
   const nombre = el("modal-cliente-nombre").value.trim();
   const documento = el("modal-cliente-documento").value.trim();
@@ -423,13 +525,15 @@ async function guardarClienteNuevo() {
   }
 
   try {
-    await api.post("/clientes", { nombre, documento, telefono, email });
-    el("modal-cliente-exito").textContent = "Cliente creado exitosamente.";
+    if (clienteEditandoId === null) {
+      await api.post("/clientes", { nombre, documento, telefono, email });
+      el("modal-cliente-exito").textContent = "Cliente creado exitosamente.";
+    } else {
+      await api.patch(`/clientes/${clienteEditandoId}`, { nombre, documento, telefono, email });
+      el("modal-cliente-exito").textContent = "Cliente actualizado exitosamente.";
+    }
     el("modal-cliente-exito").classList.remove("hidden");
     await cargarClientesRecientes();
-    ["modal-cliente-nombre", "modal-cliente-documento", "modal-cliente-telefono", "modal-cliente-email"].forEach(
-      (id) => (el(id).value = "")
-    );
     setTimeout(cerrarModalCliente, 1500);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -455,7 +559,27 @@ document.addEventListener("DOMContentLoaded", () => {
   el("btn-crear-celular").addEventListener("click", crearCelular);
   el("btn-abrir-modal-cliente").addEventListener("click", abrirModalCliente);
   el("btn-cancelar-modal-cliente").addEventListener("click", cerrarModalCliente);
-  el("btn-guardar-modal-cliente").addEventListener("click", guardarClienteNuevo);
+  el("btn-guardar-modal-cliente").addEventListener("click", guardarCliente);
+
+  el("lista-clientes-recientes").addEventListener("click", (evento) => {
+    const botonEditar = evento.target.closest(".btn-editar-cliente");
+    if (botonEditar) {
+      abrirModalEditarCliente(Number(botonEditar.dataset.id));
+      return;
+    }
+    const botonEliminar = evento.target.closest(".btn-eliminar-cliente");
+    if (botonEliminar) {
+      eliminarCliente(Number(botonEliminar.dataset.id));
+    }
+  });
+
+  el("buscar-tabla-creditos").addEventListener("input", filtrarTablaCreditosActivos);
+
+  el("tabla-creditos-activos-body").addEventListener("click", (evento) => {
+    const boton = evento.target.closest(".btn-ver-detalle-credito");
+    if (!boton) return;
+    verDetalleCredito(boton.dataset.documento);
+  });
 
   el("lista-vendedores").addEventListener("click", (evento) => {
     const boton = evento.target.closest(".btn-toggle-vendedor");

@@ -16,6 +16,13 @@ class ClienteCreate(ClienteBase):
     pass
 
 
+class ClienteUpdate(BaseModel):
+    nombre: Optional[str] = Field(default=None, max_length=100)
+    documento: Optional[str] = Field(default=None, max_length=20)
+    telefono: Optional[str] = Field(default=None, max_length=20)
+    email: Optional[EmailStr] = Field(default=None, max_length=100)
+
+
 class ClienteRead(ClienteBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -67,10 +74,27 @@ class VentaResponse(BaseModel):
     cuotas: list[CuotaRead]
 
 
+class CreditoActivoResumen(BaseModel):
+    credito_id: int
+    cliente_nombre: str
+    cliente_documento: str
+    equipo_nombre: str
+    monto_inicial_financiado: Decimal
+    valor_cuota_mensual: Decimal
+    cuotas_pagadas: int
+    cuotas_totales: int
+    cuotas_restantes: int
+    saldo_restante_capital: Decimal
+    proxima_fecha_pago: Optional[date] = None
+
+
 class DashboardMetrics(BaseModel):
-    monto_total_colocado: Decimal
-    monto_pendiente_cobrar: Decimal
-    intereses_generados_recaudados: Decimal
+    creditos_activos_count: int
+    monto_colocado_capital: Decimal
+    monto_colocado_con_intereses: Decimal
+    pendiente_cobrar_semana: Decimal
+    pendiente_cobrar_mes: Decimal
+    lista_creditos: list[CreditoActivoResumen]
 
 
 class LiquidacionAnticipadaResponse(BaseModel):

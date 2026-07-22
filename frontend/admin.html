@@ -63,19 +63,51 @@
       <!-- Dashboard -->
       <section class="bg-white rounded-lg shadow p-5 sm:p-8">
         <h2 class="text-lg font-semibold mb-4">Dashboard</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
           <div class="rounded-lg bg-primary/5 border border-primary/20 p-4">
-            <p class="text-slate-500">Monto total colocado</p>
-            <p id="kpi-total-colocado" class="text-xl font-bold text-primary">$0</p>
+            <p class="text-slate-500">Créditos activos</p>
+            <p id="kpi-creditos-activos" class="text-2xl font-bold text-primary">0</p>
           </div>
-          <div class="rounded-lg bg-amber-50 border border-amber-100 p-4">
-            <p class="text-slate-500">Pendiente por cobrar</p>
-            <p id="kpi-pendiente-cobrar" class="text-xl font-bold text-amber-700">$0</p>
+          <div class="rounded-lg bg-primary/5 border border-primary/20 p-4">
+            <p class="text-slate-500">Monto colocado</p>
+            <p id="kpi-monto-colocado" class="text-xl font-bold text-primary">$0</p>
+            <p id="kpi-monto-colocado-intereses" class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">Con intereses: $0</p>
           </div>
           <div class="rounded-lg bg-accent/10 border border-accent/30 p-4">
-            <p class="text-slate-500">Intereses recaudados</p>
-            <p id="kpi-intereses" class="text-xl font-bold text-accent-dark">$0</p>
+            <p class="text-slate-500">Pendiente por cobrar</p>
+            <p id="kpi-pendiente-semana" class="text-xl font-bold text-accent-dark">$0</p>
+            <p class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-accent/20 text-accent-dark">Semana actual</p>
           </div>
+          <div class="rounded-lg bg-primary/5 border border-primary/20 p-4">
+            <p class="text-slate-500">Pendiente por cobrar</p>
+            <p id="kpi-pendiente-mes" class="text-xl font-bold text-primary">$0</p>
+            <p class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">Mes actual</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tabla de créditos activos -->
+      <section class="bg-white rounded-lg shadow p-5 sm:p-8 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold">Créditos activos</h2>
+          <input id="buscar-tabla-creditos" type="text" placeholder="Filtrar por nombre o documento..." class="w-full sm:w-72 rounded-lg border-slate-300 border px-3 py-2 text-sm" />
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-left">
+                <th class="p-2">Cliente</th>
+                <th class="p-2">Equipo</th>
+                <th class="p-2">Monto inicial</th>
+                <th class="p-2">Cuota mensual</th>
+                <th class="p-2">Progreso</th>
+                <th class="p-2">Saldo restante</th>
+                <th class="p-2">Próx. vencimiento</th>
+                <th class="p-2">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-creditos-activos-body"></tbody>
+          </table>
         </div>
       </section>
 
@@ -149,7 +181,7 @@
   <!-- Modal: Crear Nuevo Cliente -->
   <div id="modal-cliente-nuevo" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-lg shadow p-5 sm:p-6 w-full max-w-sm space-y-4">
-      <h3 class="text-lg font-semibold">Crear Nuevo Cliente</h3>
+      <h3 id="modal-cliente-titulo" class="text-lg font-semibold">Crear Nuevo Cliente</h3>
       <div id="modal-cliente-error" class="hidden rounded-lg bg-red-100 text-red-700 px-3 py-2 text-sm"></div>
       <div id="modal-cliente-exito" class="hidden rounded-lg bg-accent/10 text-accent-dark px-3 py-2 text-sm font-medium"></div>
       <div>
