@@ -38,6 +38,7 @@ class Venta(Base):
     cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"))
     celular_nuevo_id: Mapped[int] = mapped_column(ForeignKey("celulares.id"))
     vendedor_id: Mapped[int | None] = mapped_column(ForeignKey("vendedores.id"))
+    tipo_venta: Mapped[str] = mapped_column(String(20), server_default=text("'Credito'"))
     valor_venta: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     fecha_venta: Mapped[datetime] = mapped_column(server_default=func.current_timestamp())
 

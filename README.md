@@ -10,6 +10,7 @@ Plataforma web responsive diseñada para la gestión de ventas de celulares a cr
 - **Despliegue:** **Railway** (dos servicios independientes — backend y frontend — optimizados para un consumo eficiente de recursos).
 - **Notificaciones:** SMTP nativo a través de **Gmail** (Envío automático de estados de cuenta por correo).
 - **Reportes:** Generación de contratos y tablas de pago en PDF del lado del cliente utilizando **jsPDF / html2pdf** (Cero carga para el servidor).
+- **Analítica del Panel Admin:** **Chart.js** (gráficas de ventas diarias/mensuales) y **SheetJS (xlsx)** (exportación de créditos activos a Excel), ambas vía CDN y ejecutadas en el navegador — mismo principio de cero carga adicional al servidor.
 
 ## 🔐 Autenticación y Roles
 
@@ -22,16 +23,18 @@ Tres roles con acceso independiente vía JWT, cada uno con su propia interfaz:
 
 ### 1. Asesor / Ventas (Flujo Wizard en 4 Pasos)
 Requiere inicio de sesión como Vendedor.
-- **Paso 1 (Cliente):** Registro y validación obligatoria de datos (Cédula, Nombre, Teléfono, Email).
+- **Paso 1 (Cliente):** Selección del **Tipo de Venta** (Crédito o Contado) y registro/validación obligatoria de datos del cliente (Cédula, Nombre, Teléfono, Email).
 - **Paso 2 (Equipo Nuevo):** Selección desde el inventario del celular a vender (Marca, Referencia, Costo, Valor comercial, IMEI), o registro de un celular nuevo directamente desde este paso.
-- **Paso 3 (Liquidación):** Aplicación de abonos iniciales (Efectivo/Transferencia) y evaluación de celulares en retoma (con enlace de acceso rápido a verificación externa de IMEI).
-- **Paso 4 (Financiación):** Proyección del crédito ingresando el número de cuotas y tasa de interés.
+- **Paso 3 (Liquidación):** Aplicación de abonos iniciales (Efectivo/Transferencia) y evaluación de celulares en retoma (con enlace de acceso rápido a verificación externa de IMEI). En venta de Contado, abonos + retoma deben cubrir exactamente el valor de venta.
+- **Paso 4 (Financiación o Resumen de Pago):** Si es Crédito, proyección del crédito ingresando el número de cuotas y tasa de interés. Si es Contado, resumen de pago único (sin cuotas ni intereses) y comprobante en PDF.
 
 ### 2. Panel de Administración (Dashboard)
 Requiere inicio de sesión como Administrador.
-- KPIs en tiempo real: Monto total colocado, Monto pendiente por cobrar, e Intereses reales generados.
+- KPIs en tiempo real: Créditos activos, Monto colocado (capital y con intereses proyectados), y Pendiente por cobrar (semana y mes actual).
+- Gráficas de ventas diarias (últimos 30 días) y mensuales (últimos 12 meses), comparando Contado vs. Crédito.
+- Tabla de Créditos Activos (paginada, con búsqueda por cliente/documento y exportación a Excel) e Histórico completo de Ventas (paginado).
 - Buscador y visualizador detallado por Cliente o Equipo: Cuotas pendientes, valores exactos, vendedor responsable de la venta y cálculo automatizado de liquidación anticipada.
-- Listas rápidas de los últimos clientes registrados y celulares disponibles, con formularios para crear un cliente o agregar un celular al inventario sin pasar por el flujo de venta.
+- Gestión completa de Clientes (crear, editar, eliminar) y celulares disponibles, con formularios para operar sin pasar por el flujo de venta.
 - Gestión de cuentas de Vendedores (crear, activar/desactivar).
 - Gestor de Banners Publicitarios dinámicos para el portal del cliente.
 
@@ -70,6 +73,7 @@ CREATE TABLE ventas (
     cliente_id INT REFERENCES clientes(id),
     celular_nuevo_id INT REFERENCES celulares(id),
     vendedor_id INT REFERENCES vendedores(id) NULL, -- quién registró la venta
+    tipo_venta VARCHAR(20) DEFAULT 'Credito', -- 'Credito', 'Contado'
     valor_venta NUMERIC(12, 2) NOT NULL,
     fecha_venta TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

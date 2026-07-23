@@ -65,7 +65,7 @@
         <li data-step-indicator="1" class="step-indicator flex-1 text-center text-primary font-bold">1. Cliente</li>
         <li data-step-indicator="2" class="step-indicator flex-1 text-center text-slate-400">2. Equipo</li>
         <li data-step-indicator="3" class="step-indicator flex-1 text-center text-slate-400">3. Liquidación</li>
-        <li data-step-indicator="4" class="step-indicator flex-1 text-center text-slate-400">4. Crédito</li>
+        <li data-step-indicator="4" id="step-indicador-4" class="step-indicator flex-1 text-center text-slate-400">4. Crédito</li>
       </ol>
 
       <div class="bg-white rounded-lg shadow p-5 sm:p-8">
@@ -73,6 +73,15 @@
       <!-- Paso 1: Cliente -->
       <section data-step="1" class="space-y-4">
         <h2 class="text-lg font-semibold">Datos del Cliente</h2>
+
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-3">
+          <p class="text-sm font-medium mb-2">Tipo de Venta</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btn-tipo-credito" data-tipo="Credito" class="tipo-venta-btn px-4 py-2 rounded-lg font-semibold text-sm border-2">Crédito</button>
+            <button type="button" id="btn-tipo-contado" data-tipo="Contado" class="tipo-venta-btn px-4 py-2 rounded-lg font-semibold text-sm border-2">Contado</button>
+          </div>
+        </div>
+
         <div>
           <label class="block text-sm font-medium mb-1">Cédula</label>
           <div class="flex gap-2">
@@ -167,14 +176,15 @@
         </div>
 
         <div class="rounded-lg bg-primary/5 border border-primary/20 p-3 text-sm">
-          <p>Monto a financiar (estimado): <span id="monto-financiar-preview" class="font-semibold">$0</span></p>
+          <p><span id="preview-label">Monto a financiar (estimado)</span>: <span id="monto-financiar-preview" class="font-semibold">$0</span></p>
         </div>
       </section>
 
-      <!-- Paso 4: Crédito -->
+      <!-- Paso 4: Crédito o Resumen de Contado -->
       <section data-step="4" class="space-y-4 hidden">
-        <h2 class="text-lg font-semibold">Proyección del Crédito</h2>
-        <div class="grid grid-cols-2 gap-4">
+        <h2 id="paso4-titulo" class="text-lg font-semibold">Proyección del Crédito</h2>
+
+        <div id="paso4-credito-form" class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium mb-1">Tasa de interés mensual (%)</label>
             <input id="credito-tasa" type="number" min="0" step="0.01" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
@@ -185,13 +195,22 @@
           </div>
         </div>
 
-        <div id="resultado-credito" class="hidden space-y-4">
+        <div id="paso4-contado-resumen" class="hidden rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm space-y-1">
+          <p>Valor de venta: $<span id="contado-resumen-valor"></span></p>
+          <p>Abono efectivo: $<span id="contado-resumen-efectivo"></span></p>
+          <p>Abono transferencia: $<span id="contado-resumen-transferencia"></span></p>
+          <p id="contado-resumen-retoma-linea" class="hidden">Retoma: $<span id="contado-resumen-retoma"></span></p>
+          <p class="font-semibold pt-2 border-t border-slate-200">Total: $<span id="contado-resumen-total"></span></p>
+        </div>
+
+        <div id="resultado-venta" class="hidden space-y-4">
           <div class="rounded-lg bg-accent/10 border border-accent/30 p-4 text-sm space-y-1">
-            <p class="font-semibold text-accent-dark">Crédito generado exitosamente</p>
-            <p>Monto financiado: $<span id="resultado-monto-financiado"></span></p>
-            <p>Cuota fija mensual: $<span id="resultado-cuota-fija"></span></p>
+            <p id="resultado-titulo" class="font-semibold text-accent-dark">Crédito generado exitosamente</p>
+            <p id="resultado-linea-financiado">Monto financiado: $<span id="resultado-monto-financiado"></span></p>
+            <p id="resultado-linea-cuota">Cuota fija mensual: $<span id="resultado-cuota-fija"></span></p>
+            <p id="resultado-linea-total" class="hidden">Total pagado: $<span id="resultado-total-pagado"></span></p>
           </div>
-          <div class="overflow-x-auto">
+          <div id="resultado-tabla-wrapper" class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr class="bg-slate-100 text-left">

@@ -9,9 +9,14 @@ export function generarPdfResumen(estado, resultado) {
   const salto = (n = 8) => {
     y += n;
   };
+  const esContado = resultado.tipo_venta === "Contado";
 
   doc.setFontSize(16);
-  doc.text("Resumen de Compra a Crédito - CrediApp", 15, y);
+  doc.text(
+    esContado ? "Comprobante de Venta de Contado - CrediApp" : "Resumen de Compra a Crédito - CrediApp",
+    15,
+    y
+  );
   salto(12);
 
   doc.setFontSize(11);
@@ -30,6 +35,22 @@ export function generarPdfResumen(estado, resultado) {
   salto();
   doc.text(`Valor de venta: $${formatoMoneda(estado.valorVenta)}`, 15, y);
   salto(10);
+
+  if (esContado) {
+    doc.text(`Abono efectivo: $${formatoMoneda(estado.abonoEfectivo)}`, 15, y);
+    salto();
+    doc.text(`Abono transferencia: $${formatoMoneda(estado.abonoTransferencia)}`, 15, y);
+    salto();
+    if (estado.celularRetoma) {
+      doc.text(`Retoma: $${formatoMoneda(estado.celularRetoma.valor_comercial)}`, 15, y);
+      salto();
+    }
+    doc.text(`Total pagado: $${formatoMoneda(estado.valorVenta)}`, 15, y);
+    salto(10);
+    doc.text("Venta pagada en su totalidad al momento de la compra.", 15, y);
+    doc.save(`comprobante-venta-${resultado.venta_id}.pdf`);
+    return;
+  }
 
   doc.text(`Monto financiado: $${formatoMoneda(resultado.monto_financiado)}`, 15, y);
   salto();

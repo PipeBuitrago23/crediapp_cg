@@ -66,6 +66,21 @@ def enviar_resumen_venta(
     _enviar(destinatario, "Resumen de tu compra a crédito - CrediApp", cuerpo_html)
 
 
+def enviar_resumen_venta_contado(destinatario: str, nombre_cliente: str, valor_venta: Decimal) -> None:
+    """Se ejecuta en un hilo aparte vía BackgroundTasks; nunca debe bloquear ni fallar la venta."""
+    cuerpo_html = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif;">
+        <p>Hola {nombre_cliente},</p>
+        <p>Tu compra de contado fue registrada exitosamente.</p>
+        <p><strong>Valor pagado:</strong> ${valor_venta:,.2f}</p>
+        <p>Gracias por tu compra.</p>
+      </body>
+    </html>
+    """
+    _enviar(destinatario, "Resumen de tu compra de contado - CrediApp", cuerpo_html)
+
+
 def enviar_otp(destinatario: str, codigo: str) -> None:
     """Se ejecuta en un hilo aparte vía BackgroundTasks; nunca debe bloquear ni fallar el request."""
     cuerpo_html = f"""

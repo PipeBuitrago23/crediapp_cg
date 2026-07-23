@@ -5,6 +5,14 @@ const STORAGE_KEY = "crediapp_admin_token";
 
 let ultimaBusqueda = null; // { tipo: "documento" | "imei", valor: string }
 let creditosActivosCache = [];
+let ventasHistorialCache = [];
+
+const TAM_PAGINA = 10;
+let paginaCreditos = 1;
+let paginaVentas = 1;
+
+let chartVentasDiarias = null;
+let chartVentasMensuales = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -18,6 +26,21 @@ function limpiarError() {
   const caja = el("mensaje-error");
   caja.textContent = "";
   caja.classList.add("hidden");
+}
+
+// ---------- Paginación genérica ----------
+
+function paginar(lista, pagina) {
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / TAM_PAGINA));
+  const paginaValida = Math.min(Math.max(pagina, 1), totalPaginas);
+  const inicio = (paginaValida - 1) * TAM_PAGINA;
+  return { pagina: lista.slice(inicio, inicio + TAM_PAGINA), paginaValida, totalPaginas };
+}
+
+function actualizarControlesPaginacion(prefijo, paginaActual, totalPaginas) {
+  el(`${prefijo}-pagina-indicador`).textContent = `Página ${paginaActual} de ${totalPaginas}`;
+  el(`btn-${prefijo}-anterior`).disabled = paginaActual <= 1;
+  el(`btn-${prefijo}-siguiente`).disabled = paginaActual >= totalPaginas;
 }
 
 function mostrarLogin() {
@@ -65,6 +88,7 @@ async function iniciarSesion() {
     setToken(respuesta.access_token);
     mostrarPanel();
     cargarDashboard();
+    cargarVentasReporte();
     cargarBanners();
     cargarVendedores();
     cargarClientesRecientes();
@@ -94,6 +118,7 @@ async function cargarDashboard() {
 
   creditosActivosCache = metrics.lista_creditos;
   el("buscar-tabla-creditos").value = "";
+  paginaCreditos = 1;
   renderizarTablaCreditosActivos(creditosActivosCache);
 }
 
@@ -104,10 +129,14 @@ function renderizarTablaCreditosActivos(lista) {
 
   if (lista.length === 0) {
     cuerpo.innerHTML = '<tr><td colspan="8" class="p-3 text-sm text-slate-500 text-center">No hay créditos activos.</td></tr>';
+    actualizarControlesPaginacion("creditos", 1, 1);
     return;
   }
 
-  cuerpo.innerHTML = lista
+  const { pagina, paginaValida, totalPaginas } = paginar(lista, paginaCreditos);
+  paginaCreditos = paginaValida;
+
+  cuerpo.innerHTML = pagina
     .map(
       (credito) => `
         <tr class="border-b border-slate-100">
@@ -128,26 +157,133 @@ function renderizarTablaCreditosActivos(lista) {
       `
     )
     .join("");
+
+  actualizarControlesPaginacion("creditos", paginaCreditos, totalPaginas);
 }
 
-function filtrarTablaCreditosActivos() {
+function obtenerListaCreditosFiltrada() {
   const termino = el("buscar-tabla-creditos").value.trim().toLowerCase();
-  if (!termino) {
-    renderizarTablaCreditosActivos(creditosActivosCache);
-    return;
-  }
-  const filtrados = creditosActivosCache.filter(
+  if (!termino) return creditosActivosCache;
+  return creditosActivosCache.filter(
     (credito) =>
       credito.cliente_nombre.toLowerCase().includes(termino) ||
       credito.cliente_documento.toLowerCase().includes(termino)
   );
-  renderizarTablaCreditosActivos(filtrados);
+}
+
+function filtrarTablaCreditosActivos() {
+  paginaCreditos = 1;
+  renderizarTablaCreditosActivos(obtenerListaCreditosFiltrada());
 }
 
 function verDetalleCredito(documento) {
   el("buscar-documento").value = documento;
   buscarPorDocumento();
   el("resultados-creditos").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function exportarCreditosExcel() {
+  const filas = creditosActivosCache.map((credito) => ({
+    Cliente: credito.cliente_nombre,
+    Documento: credito.cliente_documento,
+    Equipo: credito.equipo_nombre,
+    "Monto Inicial": Number(credito.monto_inicial_financiado),
+    "Cuota Mensual": Number(credito.valor_cuota_mensual),
+    "Cuotas Pagadas": credito.cuotas_pagadas,
+    "Cuotas Totales": credito.cuotas_totales,
+    "Saldo Restante": Number(credito.saldo_restante_capital),
+    "Próx. Vencimiento": credito.proxima_fecha_pago ?? "",
+  }));
+
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "Creditos Activos");
+  XLSX.writeFile(libro, `creditos-activos-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// ---------- Ventas: gráficas e histórico ----------
+
+async function cargarVentasReporte() {
+  const reporte = await manejarLlamada(() => api.get("/admin/ventas"));
+  if (!reporte) return;
+
+  renderizarGraficasVentas(reporte.ventas_diarias, reporte.ventas_mensuales);
+
+  ventasHistorialCache = reporte.historial;
+  paginaVentas = 1;
+  renderizarTablaVentasHistorial();
+}
+
+function renderizarGraficasVentas(ventasDiarias, ventasMensuales) {
+  const coloresDataset = [
+    { label: "Contado", color: "#00C853" },
+    { label: "Crédito", color: "#0056BF" },
+  ];
+
+  if (chartVentasDiarias) chartVentasDiarias.destroy();
+  chartVentasDiarias = new Chart(el("grafica-ventas-diarias").getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: ventasDiarias.map((punto) => punto.periodo.slice(5)),
+      datasets: [
+        { label: coloresDataset[0].label, data: ventasDiarias.map((p) => Number(p.total_contado)), backgroundColor: coloresDataset[0].color },
+        { label: coloresDataset[1].label, data: ventasDiarias.map((p) => Number(p.total_credito)), backgroundColor: coloresDataset[1].color },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } },
+      plugins: { legend: { position: "bottom" } },
+    },
+  });
+
+  if (chartVentasMensuales) chartVentasMensuales.destroy();
+  chartVentasMensuales = new Chart(el("grafica-ventas-mensuales").getContext("2d"), {
+    type: "line",
+    data: {
+      labels: ventasMensuales.map((punto) => punto.periodo),
+      datasets: [
+        { label: coloresDataset[0].label, data: ventasMensuales.map((p) => Number(p.total_contado)), borderColor: coloresDataset[0].color, backgroundColor: `${coloresDataset[0].color}33`, tension: 0.3 },
+        { label: coloresDataset[1].label, data: ventasMensuales.map((p) => Number(p.total_credito)), borderColor: coloresDataset[1].color, backgroundColor: `${coloresDataset[1].color}33`, tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true } },
+      plugins: { legend: { position: "bottom" } },
+    },
+  });
+}
+
+function renderizarTablaVentasHistorial() {
+  const cuerpo = el("tabla-ventas-historial-body");
+
+  if (ventasHistorialCache.length === 0) {
+    cuerpo.innerHTML = '<tr><td colspan="6" class="p-3 text-sm text-slate-500 text-center">No hay ventas registradas.</td></tr>';
+    actualizarControlesPaginacion("ventas", 1, 1);
+    return;
+  }
+
+  const { pagina, paginaValida, totalPaginas } = paginar(ventasHistorialCache, paginaVentas);
+  paginaVentas = paginaValida;
+
+  cuerpo.innerHTML = pagina
+    .map((venta) => {
+      const tipoBadgeClase = venta.tipo_venta === "Contado" ? "bg-accent/10 text-accent-dark" : "bg-primary/10 text-primary";
+      return `
+        <tr class="border-b border-slate-100">
+          <td class="p-2">${venta.venta_id}</td>
+          <td class="p-2">${venta.cliente_nombre} <span class="text-xs text-slate-500">(${venta.cliente_documento})</span></td>
+          <td class="p-2">${venta.equipo_nombre}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${tipoBadgeClase}">${venta.tipo_venta}</span></td>
+          <td class="p-2">$${formatoMoneda(venta.valor_venta)}</td>
+          <td class="p-2">${venta.fecha_venta.slice(0, 10)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  actualizarControlesPaginacion("ventas", paginaVentas, totalPaginas);
 }
 
 // ---------- Buscador de créditos ----------
@@ -200,7 +336,7 @@ function renderizarCreditos(creditos) {
   }
 
   el("resultados-creditos").innerHTML = creditos
-    .map((credito) => {
+    .map((credito, indice) => {
       const filasCuotas = credito.cuotas
         .map(
           (cuota) => `
@@ -222,24 +358,32 @@ function renderizarCreditos(creditos) {
         .join("");
 
       const estadoBadgeClase = credito.estado === "Activo" ? "bg-primary/10 text-primary" : "bg-accent/10 text-accent-dark";
+      const ocultoClase = indice === 0 ? "" : "hidden";
 
       return `
-        <div class="rounded-lg border border-slate-200 p-4 space-y-2">
-          <p class="font-semibold">${credito.cliente.nombre} (${credito.cliente.documento}) — ${credito.equipo.marca} ${credito.equipo.referencia}</p>
-          <p class="text-sm text-slate-500">Crédito #${credito.id} — <span class="px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClase}">${credito.estado}</span> — Tasa: ${credito.tasa_interes_mensual}% — Vendido por: ${credito.vendedor ? credito.vendedor.nombre : "Sin asignar"}</p>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
-              <thead>
-                <tr class="bg-slate-100 text-left">
-                  <th class="p-2">Cuota</th>
-                  <th class="p-2">Vence</th>
-                  <th class="p-2">Total</th>
-                  <th class="p-2">Estado</th>
-                  <th class="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>${filasCuotas}</tbody>
-            </table>
+        <div class="rounded-lg border border-slate-200 overflow-hidden">
+          <button type="button" class="btn-toggle-detalle-credito w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-slate-50" data-credito-detalle="${credito.id}">
+            <div>
+              <p class="font-semibold">${credito.cliente.nombre} (${credito.cliente.documento}) — ${credito.equipo.marca} ${credito.equipo.referencia}</p>
+              <p class="text-sm text-slate-500">Crédito #${credito.id} — <span class="px-2 py-0.5 rounded-full text-xs font-medium ${estadoBadgeClase}">${credito.estado}</span> — Tasa: ${credito.tasa_interes_mensual}% — Vendido por: ${credito.vendedor ? credito.vendedor.nombre : "Sin asignar"}</p>
+            </div>
+            <span class="text-slate-400 text-lg">▾</span>
+          </button>
+          <div class="detalle-credito-cuotas ${ocultoClase} px-4 pb-4" data-credito-cuotas="${credito.id}">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr class="bg-slate-100 text-left">
+                    <th class="p-2">Cuota</th>
+                    <th class="p-2">Vence</th>
+                    <th class="p-2">Total</th>
+                    <th class="p-2">Estado</th>
+                    <th class="p-2"></th>
+                  </tr>
+                </thead>
+                <tbody>${filasCuotas}</tbody>
+              </table>
+            </div>
           </div>
         </div>
       `;
@@ -574,6 +718,25 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   el("buscar-tabla-creditos").addEventListener("input", filtrarTablaCreditosActivos);
+  el("btn-exportar-excel").addEventListener("click", exportarCreditosExcel);
+
+  el("btn-creditos-anterior").addEventListener("click", () => {
+    paginaCreditos -= 1;
+    renderizarTablaCreditosActivos(obtenerListaCreditosFiltrada());
+  });
+  el("btn-creditos-siguiente").addEventListener("click", () => {
+    paginaCreditos += 1;
+    renderizarTablaCreditosActivos(obtenerListaCreditosFiltrada());
+  });
+
+  el("btn-ventas-anterior").addEventListener("click", () => {
+    paginaVentas -= 1;
+    renderizarTablaVentasHistorial();
+  });
+  el("btn-ventas-siguiente").addEventListener("click", () => {
+    paginaVentas += 1;
+    renderizarTablaVentasHistorial();
+  });
 
   el("tabla-creditos-activos-body").addEventListener("click", (evento) => {
     const boton = evento.target.closest(".btn-ver-detalle-credito");
@@ -588,9 +751,20 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   el("resultados-creditos").addEventListener("click", (evento) => {
-    const boton = evento.target.closest(".btn-pagar-cuota");
-    if (!boton) return;
-    pagarCuota(Number(boton.dataset.credito), Number(boton.dataset.numero));
+    const botonToggle = evento.target.closest(".btn-toggle-detalle-credito");
+    if (botonToggle) {
+      const id = botonToggle.dataset.creditoDetalle;
+      const panel = document.querySelector(`.detalle-credito-cuotas[data-credito-cuotas="${id}"]`);
+      const estabaAbierto = panel && !panel.classList.contains("hidden");
+      document.querySelectorAll(".detalle-credito-cuotas").forEach((p) => p.classList.add("hidden"));
+      if (panel && !estabaAbierto) panel.classList.remove("hidden");
+      return;
+    }
+
+    const botonPagar = evento.target.closest(".btn-pagar-cuota");
+    if (botonPagar) {
+      pagarCuota(Number(botonPagar.dataset.credito), Number(botonPagar.dataset.numero));
+    }
   });
 
   el("lista-banners").addEventListener("click", (evento) => {
@@ -610,6 +784,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setToken(tokenGuardado);
     mostrarPanel();
     cargarDashboard();
+    cargarVentasReporte();
     cargarBanners();
     cargarVendedores();
     cargarClientesRecientes();

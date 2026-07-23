@@ -7,12 +7,15 @@ const TOTAL_PASOS = 4;
 
 const estado = {
   paso: 1,
+  tipoVenta: "Credito",
   cliente: null,
   celularNuevo: null,
   valorVenta: null,
   celularRetoma: null,
   tasaInteresMensual: null,
   cuotasTotales: null,
+  abonoEfectivo: 0,
+  abonoTransferencia: 0,
   resultado: null,
 };
 
@@ -99,9 +102,23 @@ function mostrarPaso(numero) {
     item.classList.toggle("text-slate-400", !activo);
   });
 
+  if (numero === 4) {
+    const esContado = estado.tipoVenta === "Contado";
+    el("paso4-credito-form").classList.toggle("hidden", esContado);
+    el("paso4-contado-resumen").classList.toggle("hidden", !esContado);
+    el("paso4-titulo").textContent = esContado ? "Resumen de Pago" : "Proyección del Crédito";
+    if (esContado && !estado.resultado) {
+      actualizarResumenContado();
+    }
+  }
+
   el("btn-atras").disabled = numero === 1;
   const esUltimoPaso = numero === TOTAL_PASOS;
-  el("btn-siguiente").textContent = esUltimoPaso ? "Generar Crédito" : "Siguiente";
+  el("btn-siguiente").textContent = esUltimoPaso
+    ? estado.tipoVenta === "Contado"
+      ? "Finalizar Venta"
+      : "Generar Crédito"
+    : "Siguiente";
   el("btn-siguiente").classList.toggle("hidden", esUltimoPaso && Boolean(estado.resultado));
   // El último paso finaliza la venta — usa el verde de acento en vez del azul primario de navegación.
   el("btn-siguiente").classList.toggle("bg-primary", !esUltimoPaso);
@@ -110,6 +127,26 @@ function mostrarPaso(numero) {
   el("btn-siguiente").classList.toggle("hover:bg-accent-dark", esUltimoPaso);
 
   limpiarError();
+}
+
+// ---------- Tipo de Venta ----------
+
+function marcarBotonTipoVenta(boton, activo) {
+  boton.classList.toggle("border-primary", activo);
+  boton.classList.toggle("bg-primary", activo);
+  boton.classList.toggle("text-white", activo);
+  boton.classList.toggle("border-slate-300", !activo);
+  boton.classList.toggle("bg-white", !activo);
+  boton.classList.toggle("text-slate-600", !activo);
+}
+
+function seleccionarTipoVenta(tipo) {
+  estado.tipoVenta = tipo;
+  marcarBotonTipoVenta(el("btn-tipo-credito"), tipo === "Credito");
+  marcarBotonTipoVenta(el("btn-tipo-contado"), tipo === "Contado");
+  el("step-indicador-4").textContent = tipo === "Contado" ? "4. Resumen" : "4. Crédito";
+  el("preview-label").textContent = tipo === "Contado" ? "Saldo pendiente" : "Monto a financiar (estimado)";
+  actualizarPreviewMonto();
 }
 
 // ---------- Paso 1: Cliente ----------
@@ -289,7 +326,30 @@ function actualizarPreviewMonto() {
   const abonoTransferencia = Number(el("abono-transferencia").value || 0);
   const valorRetoma = el("switch-retoma").checked ? Number(el("retoma-valor-comercial").value || 0) : 0;
   const monto = valorVenta - abonoEfectivo - abonoTransferencia - valorRetoma;
-  el("monto-financiar-preview").textContent = `$${formatoMoneda(Math.max(monto, 0))}`;
+  const elemento = el("monto-financiar-preview");
+
+  if (estado.tipoVenta === "Contado") {
+    elemento.textContent = `$${formatoMoneda(monto)}`;
+    elemento.classList.toggle("text-accent-dark", monto === 0);
+    elemento.classList.toggle("text-red-600", monto !== 0);
+  } else {
+    elemento.textContent = `$${formatoMoneda(Math.max(monto, 0))}`;
+    elemento.classList.remove("text-accent-dark", "text-red-600");
+  }
+}
+
+function actualizarResumenContado() {
+  const abonoEfectivo = Number(el("abono-efectivo").value || 0);
+  const abonoTransferencia = Number(el("abono-transferencia").value || 0);
+  const tieneRetoma = el("switch-retoma").checked;
+  const valorRetoma = tieneRetoma ? Number(el("retoma-valor-comercial").value || 0) : 0;
+
+  el("contado-resumen-valor").textContent = formatoMoneda(estado.valorVenta);
+  el("contado-resumen-efectivo").textContent = formatoMoneda(abonoEfectivo);
+  el("contado-resumen-transferencia").textContent = formatoMoneda(abonoTransferencia);
+  el("contado-resumen-retoma-linea").classList.toggle("hidden", !tieneRetoma);
+  el("contado-resumen-retoma").textContent = formatoMoneda(valorRetoma);
+  el("contado-resumen-total").textContent = formatoMoneda(abonoEfectivo + abonoTransferencia + valorRetoma);
 }
 
 function alternarRetoma() {
@@ -354,17 +414,24 @@ function validarPaso4() {
   return true;
 }
 
-async function generarCredito() {
+async function enviarVenta() {
+  estado.abonoEfectivo = Number(el("abono-efectivo").value || 0);
+  estado.abonoTransferencia = Number(el("abono-transferencia").value || 0);
+
   const payload = {
     cliente_id: estado.cliente.id,
     celular_nuevo_id: estado.celularNuevo.id,
+    tipo_venta: estado.tipoVenta,
     valor_venta: estado.valorVenta,
-    valor_abono_efectivo: Number(el("abono-efectivo").value || 0),
-    valor_abono_transferencia: Number(el("abono-transferencia").value || 0),
+    valor_abono_efectivo: estado.abonoEfectivo,
+    valor_abono_transferencia: estado.abonoTransferencia,
     valor_retoma_id: estado.celularRetoma ? estado.celularRetoma.id : null,
-    tasa_interes_mensual: estado.tasaInteresMensual,
-    cuotas_totales: estado.cuotasTotales,
   };
+
+  if (estado.tipoVenta === "Credito") {
+    payload.tasa_interes_mensual = estado.tasaInteresMensual;
+    payload.cuotas_totales = estado.cuotasTotales;
+  }
 
   const resultado = await manejarLlamada(() => api.post("/ventas", payload));
   if (!resultado) return;
@@ -374,24 +441,37 @@ async function generarCredito() {
 }
 
 function renderizarResultado(resultado) {
-  el("resultado-monto-financiado").textContent = formatoMoneda(resultado.monto_financiado);
-  el("resultado-cuota-fija").textContent = formatoMoneda(resultado.valor_cuota_fija);
+  const esContado = resultado.tipo_venta === "Contado";
 
-  el("tabla-cuotas").innerHTML = resultado.cuotas
-    .map(
-      (cuota) => `
-        <tr class="border-b border-slate-100">
-          <td class="p-2">${cuota.numero_cuota}</td>
-          <td class="p-2">${cuota.fecha_vencimiento}</td>
-          <td class="p-2">$${formatoMoneda(cuota.monto_capital)}</td>
-          <td class="p-2">$${formatoMoneda(cuota.monto_interes)}</td>
-          <td class="p-2">$${formatoMoneda(Number(cuota.monto_capital) + Number(cuota.monto_interes))}</td>
-        </tr>
-      `
-    )
-    .join("");
+  el("resultado-titulo").textContent = esContado
+    ? "Venta de contado registrada exitosamente"
+    : "Crédito generado exitosamente";
+  el("resultado-linea-financiado").classList.toggle("hidden", esContado);
+  el("resultado-linea-cuota").classList.toggle("hidden", esContado);
+  el("resultado-linea-total").classList.toggle("hidden", !esContado);
+  el("resultado-tabla-wrapper").classList.toggle("hidden", esContado);
 
-  el("resultado-credito").classList.remove("hidden");
+  if (esContado) {
+    el("resultado-total-pagado").textContent = formatoMoneda(estado.valorVenta);
+  } else {
+    el("resultado-monto-financiado").textContent = formatoMoneda(resultado.monto_financiado);
+    el("resultado-cuota-fija").textContent = formatoMoneda(resultado.valor_cuota_fija);
+    el("tabla-cuotas").innerHTML = resultado.cuotas
+      .map(
+        (cuota) => `
+          <tr class="border-b border-slate-100">
+            <td class="p-2">${cuota.numero_cuota}</td>
+            <td class="p-2">${cuota.fecha_vencimiento}</td>
+            <td class="p-2">$${formatoMoneda(cuota.monto_capital)}</td>
+            <td class="p-2">$${formatoMoneda(cuota.monto_interes)}</td>
+            <td class="p-2">$${formatoMoneda(Number(cuota.monto_capital) + Number(cuota.monto_interes))}</td>
+          </tr>
+        `
+      )
+      .join("");
+  }
+
+  el("resultado-venta").classList.remove("hidden");
   el("btn-siguiente").classList.add("hidden");
   el("btn-atras").disabled = true;
 }
@@ -408,8 +488,8 @@ async function avanzarPaso() {
   } else if (estado.paso === 3) {
     if (!(await resolverRetoma())) return;
   } else if (estado.paso === 4) {
-    if (!validarPaso4()) return;
-    await generarCredito();
+    if (estado.tipoVenta === "Credito" && !validarPaso4()) return;
+    await enviarVenta();
     return;
   }
 
@@ -429,12 +509,15 @@ function retrocederPaso() {
 function reiniciar() {
   Object.assign(estado, {
     paso: 1,
+    tipoVenta: "Credito",
     cliente: null,
     celularNuevo: null,
     valorVenta: null,
     celularRetoma: null,
     tasaInteresMensual: null,
     cuotasTotales: null,
+    abonoEfectivo: 0,
+    abonoTransferencia: 0,
     resultado: null,
   });
 
@@ -447,17 +530,22 @@ function reiniciar() {
   el("cliente-estado").textContent = "";
   el("equipo-detalle").classList.add("hidden");
   el("retoma-form").classList.add("hidden");
-  el("resultado-credito").classList.add("hidden");
+  el("resultado-venta").classList.add("hidden");
   el("btn-siguiente").classList.remove("hidden");
 
+  seleccionarTipoVenta("Credito");
   mostrarPaso(1);
 }
 
 // ---------- Inicialización ----------
 
 document.addEventListener("DOMContentLoaded", () => {
+  seleccionarTipoVenta("Credito");
+
   el("btn-login").addEventListener("click", iniciarSesion);
   el("btn-logout").addEventListener("click", cerrarSesion);
+  el("btn-tipo-credito").addEventListener("click", () => seleccionarTipoVenta("Credito"));
+  el("btn-tipo-contado").addEventListener("click", () => seleccionarTipoVenta("Contado"));
   el("btn-buscar-cliente").addEventListener("click", buscarCliente);
   el("equipo-select").addEventListener("change", seleccionarEquipoNuevo);
   el("btn-abrir-modal-celular").addEventListener("click", abrirModalCelular);

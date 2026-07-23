@@ -1,8 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class ClienteBase(BaseModel):
@@ -51,12 +51,19 @@ class CelularRead(CelularBase):
 class VentaCreate(BaseModel):
     cliente_id: int
     celular_nuevo_id: int
+    tipo_venta: Literal["Contado", "Credito"] = "Credito"
     valor_venta: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
     valor_abono_efectivo: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
     valor_abono_transferencia: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=2)
     valor_retoma_id: Optional[int] = None
-    tasa_interes_mensual: Decimal = Field(..., ge=0, max_digits=5, decimal_places=2)
-    cuotas_totales: int = Field(..., ge=1, le=60)
+    tasa_interes_mensual: Optional[Decimal] = Field(default=None, ge=0)
+    cuotas_totales: Optional[int] = Field(default=None, ge=1, le=60)
+
+    @model_validator(mode="after")
+    def _validar_campos_credito(self):
+        if self.tipo_venta == "Credito" and (self.tasa_interes_mensual is None or self.cuotas_totales is None):
+            raise ValueError("tasa_interes_mensual y cuotas_totales son obligatorios para ventas a crédito")
+        return self
 
 
 class CuotaRead(BaseModel):
@@ -68,10 +75,11 @@ class CuotaRead(BaseModel):
 
 class VentaResponse(BaseModel):
     venta_id: int
-    credito_id: int
+    tipo_venta: str
     monto_financiado: Decimal
-    valor_cuota_fija: Decimal
-    cuotas: list[CuotaRead]
+    credito_id: Optional[int] = None
+    valor_cuota_fija: Optional[Decimal] = None
+    cuotas: list[CuotaRead] = Field(default_factory=list)
 
 
 class CreditoActivoResumen(BaseModel):
@@ -209,3 +217,25 @@ class BannerRead(BannerBase):
 
     id: int
     esta_activo: bool
+
+
+class VentaEstadisticaPunto(BaseModel):
+    periodo: str
+    total_contado: Decimal
+    total_credito: Decimal
+
+
+class VentaHistorialItem(BaseModel):
+    venta_id: int
+    cliente_nombre: str
+    cliente_documento: str
+    equipo_nombre: str
+    tipo_venta: str
+    valor_venta: Decimal
+    fecha_venta: datetime
+
+
+class VentasReporte(BaseModel):
+    ventas_diarias: list[VentaEstadisticaPunto]
+    ventas_mensuales: list[VentaEstadisticaPunto]
+    historial: list[VentaHistorialItem]
