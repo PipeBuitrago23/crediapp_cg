@@ -1,4 +1,4 @@
-export const API_BASE_URL = "http://localhost:8000";
+export const API_BASE_URL = "https://crediappcg-production.up.railway.app";
 
 // TODO: reemplaza esta URL por el sitio oficial de verificación/reporte de IMEI
 // de tu país (regulador de telecomunicaciones o asociación de operadores).
