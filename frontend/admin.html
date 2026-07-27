@@ -185,7 +185,14 @@
         </section>
 
         <section class="bg-white rounded-lg shadow p-5 sm:p-8 space-y-3">
-          <h2 class="text-lg font-semibold">Celulares disponibles</h2>
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-lg font-semibold">Celulares</h2>
+            <select id="filtro-estado-celulares" class="rounded-lg border-slate-300 border px-2 py-1.5 text-sm">
+              <option value="Disponible">Disponibles</option>
+              <option value="Retomado">En retoma (sin precio)</option>
+              <option value="">Todos</option>
+            </select>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <input id="celular-marca" type="text" placeholder="Marca" class="rounded-lg border-slate-300 border px-3 py-2 text-sm" />
             <input id="celular-referencia" type="text" placeholder="Referencia" class="rounded-lg border-slate-300 border px-3 py-2 text-sm" />
@@ -253,6 +260,36 @@
       <div class="flex gap-2 pt-2">
         <button id="btn-cancelar-modal-cliente" type="button" class="flex-1 px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-medium">Cancelar</button>
         <button id="btn-guardar-modal-cliente" type="button" class="flex-1 px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Celular -->
+  <div id="modal-celular-editar" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg shadow p-5 sm:p-6 w-full max-w-sm space-y-4">
+      <h3 class="text-lg font-semibold">Editar Celular</h3>
+      <p id="modal-celular-editar-titulo" class="text-sm text-slate-500"></p>
+      <div id="modal-celular-editar-error" class="hidden rounded-lg bg-red-100 text-red-700 px-3 py-2 text-sm"></div>
+      <div id="modal-celular-editar-exito" class="hidden rounded-lg bg-accent/10 text-accent-dark px-3 py-2 text-sm font-medium"></div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Valor de costo</label>
+        <input id="modal-celular-editar-costo" type="number" min="0" step="0.01" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Valor comercial (precio de venta en vitrina)</label>
+        <input id="modal-celular-editar-comercial" type="number" min="0" step="0.01" placeholder="Sin definir" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Estado</label>
+        <select id="modal-celular-editar-estado" class="w-full rounded-lg border-slate-300 border px-3 py-2">
+          <option value="Disponible">Disponible</option>
+          <option value="Retomado">Retomado</option>
+          <option value="Vendido">Vendido</option>
+        </select>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button id="btn-cancelar-modal-celular-editar" type="button" class="flex-1 px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-medium">Cancelar</button>
+        <button id="btn-guardar-modal-celular-editar" type="button" class="flex-1 px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold">Guardar</button>
       </div>
     </div>
   </div>

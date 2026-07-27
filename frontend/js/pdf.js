@@ -42,7 +42,7 @@ export function generarPdfResumen(estado, resultado) {
     doc.text(`Abono transferencia: $${formatoMoneda(estado.abonoTransferencia)}`, 15, y);
     salto();
     if (estado.celularRetoma) {
-      doc.text(`Retoma: $${formatoMoneda(estado.celularRetoma.valor_comercial)}`, 15, y);
+      doc.text(`Retoma: $${formatoMoneda(estado.celularRetoma.valor_costo)}`, 15, y);
       salto();
     }
     doc.text(`Total pagado: $${formatoMoneda(estado.valorVenta)}`, 15, y);

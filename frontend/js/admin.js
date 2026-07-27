@@ -448,21 +448,32 @@ async function eliminarCliente(id) {
   await cargarClientesRecientes();
 }
 
+let celularesListaCache = [];
+
 async function cargarCelularesDisponibles() {
-  const celulares = await manejarLlamada(() => api.get(`/celulares?estado=Disponible&limit=${LIMITE_LISTAS}`));
+  const filtroEstado = el("filtro-estado-celulares").value;
+  const query = filtroEstado ? `estado=${filtroEstado}&limit=${LIMITE_LISTAS}` : `limit=${LIMITE_LISTAS}`;
+  const celulares = await manejarLlamada(() => api.get(`/celulares?${query}`));
   if (!celulares) return;
 
+  celularesListaCache = celulares;
+
   if (celulares.length === 0) {
-    el("lista-celulares-disponibles").innerHTML = '<p class="text-sm text-slate-500">No hay celulares disponibles.</p>';
+    el("lista-celulares-disponibles").innerHTML = '<p class="text-sm text-slate-500">No hay celulares para este filtro.</p>';
     return;
   }
 
   el("lista-celulares-disponibles").innerHTML = celulares
     .map(
       (celular) => `
-        <div class="rounded-lg border border-slate-200 p-3 text-sm">
-          <p class="font-medium">${celular.marca} ${celular.referencia}</p>
-          <p class="text-slate-500">IMEI ${celular.imei} · $${formatoMoneda(celular.valor_comercial)}</p>
+        <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+          <div>
+            <p class="font-medium">${celular.marca} ${celular.referencia} <span class="text-xs text-slate-400">(${celular.estado})</span></p>
+            <p class="text-slate-500">IMEI ${celular.imei} · ${
+              celular.valor_comercial != null ? `$${formatoMoneda(celular.valor_comercial)}` : "Precio de venta sin definir"
+            }</p>
+          </div>
+          <button type="button" class="btn-editar-celular px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-xs font-medium shrink-0" data-id="${celular.id}">Editar</button>
         </div>
       `
     )
@@ -491,6 +502,72 @@ async function crearCelular() {
     (id) => (el(id).value = "")
   );
   await cargarCelularesDisponibles();
+}
+
+// ---------- Editar celular (precio de venta / estado) ----------
+
+let celularEditandoId = null;
+
+function mostrarErrorModalCelularEditar(mensaje) {
+  el("modal-celular-editar-exito").classList.add("hidden");
+  const caja = el("modal-celular-editar-error");
+  caja.textContent = mensaje;
+  caja.classList.remove("hidden");
+}
+
+function limpiarMensajesModalCelularEditar() {
+  el("modal-celular-editar-error").classList.add("hidden");
+  el("modal-celular-editar-exito").classList.add("hidden");
+}
+
+function abrirModalEditarCelular(id) {
+  const celular = celularesListaCache.find((c) => c.id === id);
+  if (!celular) return;
+
+  celularEditandoId = id;
+  limpiarMensajesModalCelularEditar();
+  el("modal-celular-editar-titulo").textContent = `${celular.marca} ${celular.referencia} — IMEI ${celular.imei}`;
+  el("modal-celular-editar-costo").value = celular.valor_costo;
+  el("modal-celular-editar-comercial").value = celular.valor_comercial ?? "";
+  el("modal-celular-editar-estado").value = celular.estado;
+  el("modal-celular-editar").classList.remove("hidden");
+}
+
+function cerrarModalEditarCelular() {
+  el("modal-celular-editar").classList.add("hidden");
+}
+
+async function guardarCelularEditado() {
+  limpiarMensajesModalCelularEditar();
+  const valor_costo = Number(el("modal-celular-editar-costo").value);
+  const comercialRaw = el("modal-celular-editar-comercial").value.trim();
+  const estado = el("modal-celular-editar-estado").value;
+
+  if (!valor_costo) {
+    mostrarErrorModalCelularEditar("Ingresa un valor de costo válido.");
+    return;
+  }
+
+  const payload = { valor_costo, estado };
+  if (comercialRaw !== "") {
+    payload.valor_comercial = Number(comercialRaw);
+  }
+
+  try {
+    await api.patch(`/celulares/${celularEditandoId}`, payload);
+    el("modal-celular-editar-exito").textContent = "Celular actualizado exitosamente.";
+    el("modal-celular-editar-exito").classList.remove("hidden");
+    await cargarCelularesDisponibles();
+    setTimeout(cerrarModalEditarCelular, 1200);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      cerrarModalEditarCelular();
+      cerrarSesion();
+      mostrarError("Tu sesión expiró. Vuelve a iniciar sesión.");
+    } else {
+      mostrarErrorModalCelularEditar(error.message);
+    }
+  }
 }
 
 // ---------- Banners ----------
@@ -704,6 +781,15 @@ document.addEventListener("DOMContentLoaded", () => {
   el("btn-abrir-modal-cliente").addEventListener("click", abrirModalCliente);
   el("btn-cancelar-modal-cliente").addEventListener("click", cerrarModalCliente);
   el("btn-guardar-modal-cliente").addEventListener("click", guardarCliente);
+
+  el("filtro-estado-celulares").addEventListener("change", cargarCelularesDisponibles);
+  el("lista-celulares-disponibles").addEventListener("click", (evento) => {
+    const boton = evento.target.closest(".btn-editar-celular");
+    if (!boton) return;
+    abrirModalEditarCelular(Number(boton.dataset.id));
+  });
+  el("btn-cancelar-modal-celular-editar").addEventListener("click", cerrarModalEditarCelular);
+  el("btn-guardar-modal-celular-editar").addEventListener("click", guardarCelularEditado);
 
   el("lista-clientes-recientes").addEventListener("click", (evento) => {
     const botonEditar = evento.target.closest(".btn-editar-cliente");

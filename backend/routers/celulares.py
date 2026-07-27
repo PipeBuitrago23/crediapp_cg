@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from models import Celular
-from schemas import CelularCreate, CelularRead
-from security import get_current_staff
+from schemas import CelularCreate, CelularRead, CelularUpdate
+from security import get_current_admin, get_current_staff
 
 router = APIRouter(prefix="/celulares", tags=["celulares"], dependencies=[Depends(get_current_staff)])
 
@@ -35,6 +35,20 @@ async def crear_celular(payload: CelularCreate, db: AsyncSession = Depends(get_d
 
     celular = Celular(**payload.model_dump())
     db.add(celular)
+    await db.commit()
+    await db.refresh(celular)
+    return celular
+
+
+@router.patch("/{celular_id}", response_model=CelularRead, dependencies=[Depends(get_current_admin)])
+async def actualizar_celular(celular_id: int, payload: CelularUpdate, db: AsyncSession = Depends(get_db)):
+    celular = await db.get(Celular, celular_id)
+    if celular is None:
+        raise HTTPException(status_code=404, detail="Celular no encontrado")
+
+    for campo, valor in payload.model_dump(exclude_unset=True).items():
+        setattr(celular, campo, valor)
+
     await db.commit()
     await db.refresh(celular)
     return celular

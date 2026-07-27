@@ -226,9 +226,10 @@ function seleccionarEquipoNuevo() {
   estado.celularNuevo = celular;
   el("equipo-detalle-imei").textContent = celular.imei;
   el("equipo-detalle-costo").textContent = formatoMoneda(celular.valor_costo);
-  el("equipo-detalle-comercial").textContent = formatoMoneda(celular.valor_comercial);
+  el("equipo-detalle-comercial").textContent =
+    celular.valor_comercial != null ? formatoMoneda(celular.valor_comercial) : "Sin definir";
   el("equipo-detalle").classList.remove("hidden");
-  if (!el("equipo-valor-venta").value) {
+  if (!el("equipo-valor-venta").value && celular.valor_comercial != null) {
     el("equipo-valor-venta").value = celular.valor_comercial;
   }
   actualizarPreviewMonto();
@@ -324,7 +325,7 @@ function actualizarPreviewMonto() {
   const valorVenta = Number(el("equipo-valor-venta").value || 0);
   const abonoEfectivo = Number(el("abono-efectivo").value || 0);
   const abonoTransferencia = Number(el("abono-transferencia").value || 0);
-  const valorRetoma = el("switch-retoma").checked ? Number(el("retoma-valor-comercial").value || 0) : 0;
+  const valorRetoma = el("switch-retoma").checked ? Number(el("retoma-valor-costo").value || 0) : 0;
   const monto = valorVenta - abonoEfectivo - abonoTransferencia - valorRetoma;
   const elemento = el("monto-financiar-preview");
 
@@ -342,7 +343,7 @@ function actualizarResumenContado() {
   const abonoEfectivo = Number(el("abono-efectivo").value || 0);
   const abonoTransferencia = Number(el("abono-transferencia").value || 0);
   const tieneRetoma = el("switch-retoma").checked;
-  const valorRetoma = tieneRetoma ? Number(el("retoma-valor-comercial").value || 0) : 0;
+  const valorRetoma = tieneRetoma ? Number(el("retoma-valor-costo").value || 0) : 0;
 
   el("contado-resumen-valor").textContent = formatoMoneda(estado.valorVenta);
   el("contado-resumen-efectivo").textContent = formatoMoneda(abonoEfectivo);
@@ -372,9 +373,8 @@ async function resolverRetoma() {
   const referencia = el("retoma-referencia").value.trim();
   const imei = el("retoma-imei").value.trim();
   const valorCosto = Number(el("retoma-valor-costo").value);
-  const valorComercial = Number(el("retoma-valor-comercial").value);
 
-  if (!marca || !referencia || !imei || !valorCosto || !valorComercial) {
+  if (!marca || !referencia || !imei || !valorCosto) {
     mostrarError("Completa todos los datos del equipo en retoma.");
     return false;
   }
@@ -385,7 +385,6 @@ async function resolverRetoma() {
       referencia,
       imei,
       valor_costo: valorCosto,
-      valor_comercial: valorComercial,
     })
   );
   if (!celular) return false;
@@ -563,7 +562,7 @@ document.addEventListener("DOMContentLoaded", () => {
   el("btn-descargar-pdf").addEventListener("click", () => generarPdfResumen(estado, estado.resultado));
   el("btn-nueva-venta").addEventListener("click", reiniciar);
 
-  ["equipo-valor-venta", "abono-efectivo", "abono-transferencia", "retoma-valor-comercial"].forEach((id) => {
+  ["equipo-valor-venta", "abono-efectivo", "abono-transferencia", "retoma-valor-costo"].forEach((id) => {
     el(id).addEventListener("input", actualizarPreviewMonto);
   });
 

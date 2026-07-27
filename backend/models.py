@@ -27,7 +27,7 @@ class Celular(Base):
     referencia: Mapped[str] = mapped_column(String(50))
     imei: Mapped[str] = mapped_column(String(20), unique=True)
     valor_costo: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    valor_comercial: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    valor_comercial: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     estado: Mapped[str] = mapped_column(String(20), server_default=text("'Disponible'"))
 
 

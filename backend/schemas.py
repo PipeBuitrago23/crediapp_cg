@@ -34,11 +34,22 @@ class CelularBase(BaseModel):
     referencia: str = Field(..., max_length=50)
     imei: str = Field(..., max_length=20)
     valor_costo: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
-    valor_comercial: Decimal = Field(..., gt=0, max_digits=12, decimal_places=2)
+    # Opcional: en una retoma el vendedor solo conoce el valor_costo (lo que se le
+    # acredita al cliente); el valor_comercial (precio de reventa en vitrina) se
+    # define después, vía PATCH /celulares/{id}, cuando el admin decide ponerlo a la venta.
+    valor_comercial: Optional[Decimal] = Field(default=None, gt=0)
 
 
 class CelularCreate(CelularBase):
     pass
+
+
+class CelularUpdate(BaseModel):
+    marca: Optional[str] = Field(default=None, max_length=50)
+    referencia: Optional[str] = Field(default=None, max_length=50)
+    valor_costo: Optional[Decimal] = Field(default=None, gt=0)
+    valor_comercial: Optional[Decimal] = Field(default=None, gt=0)
+    estado: Optional[Literal["Disponible", "Vendido", "Retomado"]] = None
 
 
 class CelularRead(CelularBase):

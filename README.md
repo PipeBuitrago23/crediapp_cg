@@ -25,7 +25,7 @@ Tres roles con acceso independiente vía JWT, cada uno con su propia interfaz:
 Requiere inicio de sesión como Vendedor.
 - **Paso 1 (Cliente):** Selección del **Tipo de Venta** (Crédito o Contado) y registro/validación obligatoria de datos del cliente (Cédula, Nombre, Teléfono, Email).
 - **Paso 2 (Equipo Nuevo):** Selección desde el inventario del celular a vender (Marca, Referencia, Costo, Valor comercial, IMEI), o registro de un celular nuevo directamente desde este paso.
-- **Paso 3 (Liquidación):** Aplicación de abonos iniciales (Efectivo/Transferencia) y evaluación de celulares en retoma (con enlace de acceso rápido a verificación externa de IMEI). En venta de Contado, abonos + retoma deben cubrir exactamente el valor de venta.
+- **Paso 3 (Liquidación):** Aplicación de abonos iniciales (Efectivo/Transferencia) y evaluación de celulares en retoma — solo se pide Marca, Referencia, IMEI y Valor de Retoma (con enlace de acceso rápido a verificación externa de IMEI); el precio de reventa se define después desde el panel admin. En venta de Contado, abonos + retoma deben cubrir exactamente el valor de venta.
 - **Paso 4 (Financiación o Resumen de Pago):** Si es Crédito, proyección del crédito ingresando el número de cuotas y tasa de interés. Si es Contado, resumen de pago único (sin cuotas ni intereses) y comprobante en PDF.
 
 ### 2. Panel de Administración (Dashboard)
@@ -63,7 +63,7 @@ CREATE TABLE celulares (
     referencia VARCHAR(50) NOT NULL,
     imei VARCHAR(20) UNIQUE NOT NULL,
     valor_costo NUMERIC(12, 2) NOT NULL,
-    valor_comercial NUMERIC(12, 2) NOT NULL,
+    valor_comercial NUMERIC(12, 2), -- NULL hasta que el admin defina el precio de reventa (típico en retomas)
     estado VARCHAR(20) DEFAULT 'Disponible' -- 'Disponible', 'Vendido', 'Retomado'
 );
 

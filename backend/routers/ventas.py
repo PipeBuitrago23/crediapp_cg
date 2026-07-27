@@ -43,7 +43,11 @@ async def crear_venta(
                 raise HTTPException(status_code=404, detail="El celular en retoma no fue encontrado")
             if celular_retoma.estado != "Disponible":
                 raise HTTPException(status_code=400, detail="El celular en retoma no está disponible")
-            valor_retoma = celular_retoma.valor_comercial
+            # El crédito otorgado al cliente por su equipo es el valor de retoma
+            # (valor_costo) — lo único que el vendedor conoce al momento de recibirlo.
+            # valor_comercial (precio de reventa) suele definirse después y puede
+            # no existir todavía, así que no se usa para este cálculo.
+            valor_retoma = celular_retoma.valor_costo
 
         monto_financiado = (
             payload.valor_venta
