@@ -14,6 +14,7 @@ const estado = {
   celularRetoma: null,
   tasaInteresMensual: null,
   cuotasTotales: null,
+  diaPago: null,
   abonoEfectivo: 0,
   abonoTransferencia: 0,
   resultado: null,
@@ -399,6 +400,7 @@ function validarPaso4() {
   const tasaRaw = el("credito-tasa").value;
   const tasa = Number(tasaRaw);
   const cuotas = Number(el("credito-cuotas").value);
+  const diaPago = Number(el("credito-dia-pago").value);
 
   if (tasaRaw === "" || Number.isNaN(tasa) || tasa < 0) {
     mostrarError("Ingresa una tasa de interés mensual válida.");
@@ -410,6 +412,7 @@ function validarPaso4() {
   }
   estado.tasaInteresMensual = tasa;
   estado.cuotasTotales = cuotas;
+  estado.diaPago = diaPago;
   return true;
 }
 
@@ -430,6 +433,7 @@ async function enviarVenta() {
   if (estado.tipoVenta === "Credito") {
     payload.tasa_interes_mensual = estado.tasaInteresMensual;
     payload.cuotas_totales = estado.cuotasTotales;
+    payload.dia_pago = estado.diaPago;
   }
 
   const resultado = await manejarLlamada(() => api.post("/ventas", payload));
@@ -515,6 +519,7 @@ function reiniciar() {
     celularRetoma: null,
     tasaInteresMensual: null,
     cuotasTotales: null,
+    diaPago: null,
     abonoEfectivo: 0,
     abonoTransferencia: 0,
     resultado: null,

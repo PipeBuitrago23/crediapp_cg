@@ -65,10 +65,8 @@ export function generarPdfResumen(estado, resultado) {
 
   doc.setFontSize(10);
   doc.text("Cuota", 15, y);
-  doc.text("Vence", 40, y);
-  doc.text("Capital", 80, y);
-  doc.text("Interés", 120, y);
-  doc.text("Total", 160, y);
+  doc.text("Fecha de pago", 60, y);
+  doc.text("Valor cuota", 130, y);
   salto(6);
 
   resultado.cuotas.forEach((cuota) => {
@@ -78,10 +76,8 @@ export function generarPdfResumen(estado, resultado) {
     }
     const total = Number(cuota.monto_capital) + Number(cuota.monto_interes);
     doc.text(String(cuota.numero_cuota), 15, y);
-    doc.text(cuota.fecha_vencimiento, 40, y);
-    doc.text(formatoMoneda(cuota.monto_capital), 80, y);
-    doc.text(formatoMoneda(cuota.monto_interes), 120, y);
-    doc.text(formatoMoneda(total), 160, y);
+    doc.text(cuota.fecha_vencimiento, 60, y);
+    doc.text(formatoMoneda(total), 130, y);
     salto(6);
   });
 

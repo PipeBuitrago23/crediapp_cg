@@ -69,11 +69,18 @@ class VentaCreate(BaseModel):
     valor_retoma_id: Optional[int] = None
     tasa_interes_mensual: Optional[Decimal] = Field(default=None, ge=0)
     cuotas_totales: Optional[int] = Field(default=None, ge=1, le=60)
+    # Día del mes en que el cliente pagará cada cuota — elegido por el vendedor,
+    # ya no se asume el día de la venta (ver generar_tabla_amortizacion).
+    dia_pago: Optional[Literal[5, 10, 15, 20, 25]] = Field(default=None)
 
     @model_validator(mode="after")
     def _validar_campos_credito(self):
-        if self.tipo_venta == "Credito" and (self.tasa_interes_mensual is None or self.cuotas_totales is None):
-            raise ValueError("tasa_interes_mensual y cuotas_totales son obligatorios para ventas a crédito")
+        if self.tipo_venta == "Credito" and (
+            self.tasa_interes_mensual is None or self.cuotas_totales is None or self.dia_pago is None
+        ):
+            raise ValueError(
+                "tasa_interes_mensual, cuotas_totales y dia_pago son obligatorios para ventas a crédito"
+            )
         return self
 
 

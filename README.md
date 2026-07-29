@@ -26,7 +26,7 @@ Requiere inicio de sesión como Vendedor.
 - **Paso 1 (Cliente):** Selección del **Tipo de Venta** (Crédito o Contado) y registro/validación obligatoria de datos del cliente (Cédula, Nombre, Teléfono, Email).
 - **Paso 2 (Equipo Nuevo):** Selección desde el inventario del celular a vender (Marca, Referencia, Costo, Valor comercial, IMEI), o registro de un celular nuevo directamente desde este paso.
 - **Paso 3 (Liquidación):** Aplicación de abonos iniciales (Efectivo/Transferencia) y evaluación de celulares en retoma — solo se pide Marca, Referencia, IMEI y Valor de Retoma (con enlace de acceso rápido a verificación externa de IMEI); el precio de reventa se define después desde el panel admin. En venta de Contado, abonos + retoma deben cubrir exactamente el valor de venta.
-- **Paso 4 (Financiación o Resumen de Pago):** Si es Crédito, proyección del crédito ingresando el número de cuotas y tasa de interés. Si es Contado, resumen de pago único (sin cuotas ni intereses) y comprobante en PDF.
+- **Paso 4 (Financiación o Resumen de Pago):** Si es Crédito, proyección del crédito ingresando el número de cuotas, tasa de interés y día de pago mensual (5, 10, 15, 20 o 25 — ya no se asume el día de la venta). Si es Contado, resumen de pago único (sin cuotas ni intereses) y comprobante en PDF.
 
 ### 2. Panel de Administración (Dashboard)
 Requiere inicio de sesión como Administrador.

@@ -93,11 +93,15 @@ async def crear_venta(
         credito = None
         tabla = []
         if payload.tipo_venta == "Credito":
+            hoy = date.today()
+            # La primera cuota cae un mes después de la venta, igual que antes,
+            # pero en el día del mes elegido por el vendedor (no el día de la venta).
+            fecha_base = date(hoy.year, hoy.month, payload.dia_pago)
             tabla = generar_tabla_amortizacion(
                 monto_financiado=monto_financiado,
                 tasa_mensual_pct=payload.tasa_interes_mensual,
                 num_cuotas=payload.cuotas_totales,
-                fecha_inicio=date.today(),
+                fecha_inicio=fecha_base,
             )
 
             credito = Credito(
