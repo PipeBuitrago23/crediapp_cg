@@ -2,7 +2,6 @@ import { api, ApiError, setToken, clearToken } from "./api.js";
 import { formatoMoneda } from "./format.js";
 
 const STORAGE_KEY = "crediapp_cliente_token";
-const DOCUMENTO_KEY = "crediapp_cliente_documento";
 
 const el = (id) => document.getElementById(id);
 
@@ -19,7 +18,7 @@ function limpiarError() {
 }
 
 function mostrarVista(nombre) {
-  ["vista-solicitar", "vista-verificar", "vista-panel"].forEach((id) => {
+  ["vista-login", "vista-panel"].forEach((id) => {
     el(id).classList.toggle("hidden", id !== nombre);
   });
 }
@@ -38,42 +37,23 @@ async function manejarLlamada(fn) {
   }
 }
 
-// ---------- Autenticación OTP ----------
+// ---------- Autenticación: solo documento ----------
 
-async function solicitarOtp() {
+async function iniciarSesion() {
   limpiarError();
-  const documento = el("solicitar-documento").value.trim();
+  const documento = el("login-documento").value.trim();
   if (!documento) {
     mostrarError("Ingresa tu número de documento.");
     return;
   }
 
-  const resultado = await manejarLlamada(async () => {
-    await api.post("/auth/cliente/solicitar-otp", { documento });
-    return true;
-  });
-  if (!resultado) return;
-
-  localStorage.setItem(DOCUMENTO_KEY, documento);
-  el("verificar-codigo").value = "";
-  mostrarVista("vista-verificar");
-}
-
-async function verificarOtp() {
-  limpiarError();
-  const documento = localStorage.getItem(DOCUMENTO_KEY);
-  const codigo = el("verificar-codigo").value.trim();
-  if (!codigo || codigo.length !== 4) {
-    mostrarError("Ingresa el código de 4 dígitos que recibiste por correo.");
-    return;
-  }
-
-  // No pasa por manejarLlamada: un 401 acá es "código inválido", no una sesión
-  // expirada — mostrar ese mensaje real en vez del genérico de sesión.
+  // No pasa por manejarLlamada: un 401 acá es "documento no registrado", no una
+  // sesión expirada — mostrar ese mensaje real en vez del genérico de sesión.
   try {
-    const respuesta = await api.post("/auth/cliente/verificar-otp", { documento, codigo });
+    const respuesta = await api.post("/auth/cliente/login", { documento });
     localStorage.setItem(STORAGE_KEY, respuesta.access_token);
     setToken(respuesta.access_token);
+    el("login-documento").value = "";
     mostrarVista("vista-panel");
     cargarMisCreditos();
   } catch (error) {
@@ -84,8 +64,7 @@ async function verificarOtp() {
 function cerrarSesion() {
   clearToken();
   localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(DOCUMENTO_KEY);
-  mostrarVista("vista-solicitar");
+  mostrarVista("vista-login");
 }
 
 // ---------- Banner público ----------
@@ -160,9 +139,10 @@ async function cotizarLiquidacion(creditoId) {
 // ---------- Inicialización ----------
 
 document.addEventListener("DOMContentLoaded", () => {
-  el("btn-solicitar-otp").addEventListener("click", solicitarOtp);
-  el("btn-verificar-otp").addEventListener("click", verificarOtp);
-  el("btn-reenviar-otp").addEventListener("click", solicitarOtp);
+  el("btn-login").addEventListener("click", iniciarSesion);
+  el("login-documento").addEventListener("keydown", (evento) => {
+    if (evento.key === "Enter") iniciarSesion();
+  });
   el("btn-logout").addEventListener("click", cerrarSesion);
 
   el("lista-creditos").addEventListener("click", (evento) => {
@@ -179,6 +159,6 @@ document.addEventListener("DOMContentLoaded", () => {
     mostrarVista("vista-panel");
     cargarMisCreditos();
   } else {
-    mostrarVista("vista-solicitar");
+    mostrarVista("vista-login");
   }
 });

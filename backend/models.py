@@ -122,15 +122,3 @@ class Vendedor(Base):
     activo: Mapped[bool] = mapped_column(server_default=text("true"))
     creado_en: Mapped[datetime] = mapped_column(server_default=func.current_timestamp())
 
-
-class OtpCliente(Base):
-    __tablename__ = "otp_clientes"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"))
-    codigo: Mapped[str] = mapped_column(String(4))
-    expira_en: Mapped[datetime] = mapped_column()
-    usado: Mapped[bool] = mapped_column(server_default=text("false"))
-    creado_en: Mapped[datetime] = mapped_column(server_default=func.current_timestamp())
-
-    cliente: Mapped["Cliente"] = relationship()

@@ -1,6 +1,7 @@
 import logging
 import os
 import smtplib
+import ssl
 from decimal import Decimal
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -9,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 465
+# Sin timeout explícito, un socket colgado deja el hilo del BackgroundTask bloqueado
+# indefinidamente, consumiendo un worker del pool que Railway paga.
+SMTP_TIMEOUT = 20
 
 
 def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
@@ -25,10 +29,13 @@ def _enviar(destinatario: str, asunto: str, cuerpo_html: str) -> None:
     mensaje.attach(MIMEText(cuerpo_html, "html"))
 
     try:
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as servidor:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as servidor:
             servidor.login(smtp_user, smtp_password)
             servidor.sendmail(smtp_user, destinatario, mensaje.as_string())
-    except smtplib.SMTPException:
+    except (smtplib.SMTPException, ssl.SSLError, OSError):
+        # OSError cubre DNS/timeout/puerto bloqueado: sin él, una falla de red se
+        # escapaba del BackgroundTask como traceback suelto en vez de este log, y
+        # rompía la promesa fire-and-forget de que el correo nunca tumba un request.
         logger.exception("Fallo al enviar correo a %s", destinatario)
 
 
@@ -81,18 +88,19 @@ def enviar_resumen_venta_contado(destinatario: str, nombre_cliente: str, valor_v
     _enviar(destinatario, "Resumen de tu compra de contado - CrediApp", cuerpo_html)
 
 
-def enviar_otp(destinatario: str, codigo: str) -> None:
-    """Se ejecuta en un hilo aparte vía BackgroundTasks; nunca debe bloquear ni fallar el request."""
-    cuerpo_html = f"""
+def enviar_prueba(destinatario: str) -> None:
+    """Correo de diagnóstico. No lo usa ningún endpoint: existe solo para que
+    check_smtp.py pueda ejercitar _enviar() de punta a punta (ver ese script)."""
+    cuerpo_html = """
     <html>
       <body style="font-family: Arial, sans-serif;">
-        <p>Tu código de acceso a CrediApp es:</p>
-        <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px;">{codigo}</p>
-        <p>Este código vence en 10 minutos. Si no lo solicitaste, ignora este correo.</p>
+        <p>Este es un correo de prueba de CrediApp.</p>
+        <p>Si lo estás leyendo, la configuración SMTP del servidor funciona:
+        los resúmenes de venta y los recibos de pago van a llegar bien.</p>
       </body>
     </html>
     """
-    _enviar(destinatario, "Tu código de acceso - CrediApp", cuerpo_html)
+    _enviar(destinatario, "Correo de prueba - CrediApp", cuerpo_html)
 
 
 def enviar_recibo_pago(

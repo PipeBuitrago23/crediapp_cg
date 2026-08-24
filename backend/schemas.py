@@ -69,9 +69,10 @@ class VentaCreate(BaseModel):
     valor_retoma_id: Optional[int] = None
     tasa_interes_mensual: Optional[Decimal] = Field(default=None, ge=0)
     cuotas_totales: Optional[int] = Field(default=None, ge=1, le=60)
-    # Día del mes en que el cliente pagará cada cuota — elegido por el vendedor,
-    # ya no se asume el día de la venta (ver generar_tabla_amortizacion).
-    dia_pago: Optional[Literal[5, 10, 15, 20, 25]] = Field(default=None)
+    # Día del mes en que el cliente pagará cada cuota — cualquier día 1-31 elegido
+    # por el vendedor, ya no se asume el día de la venta. Los días 29-31 se recortan
+    # al último día de los meses más cortos (ver generar_tabla_amortizacion).
+    dia_pago: Optional[int] = Field(default=None, ge=1, le=31)
 
     @model_validator(mode="after")
     def _validar_campos_credito(self):
@@ -141,13 +142,8 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class SolicitarOtpRequest(BaseModel):
+class ClienteLoginRequest(BaseModel):
     documento: str = Field(..., max_length=20)
-
-
-class VerificarOtpRequest(BaseModel):
-    documento: str = Field(..., max_length=20)
-    codigo: str = Field(..., min_length=4, max_length=4)
 
 
 class CuotaAdminRead(BaseModel):

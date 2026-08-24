@@ -44,25 +44,14 @@
 
     <div id="mensaje-error" class="hidden mb-4 rounded-lg bg-red-100 text-red-700 px-4 py-3 text-sm"></div>
 
-    <!-- Solicitar OTP -->
-    <section id="vista-solicitar" class="bg-white rounded-lg shadow p-5 sm:p-8 space-y-4">
+    <!-- Ingreso: solo documento, sin OTP -->
+    <section id="vista-login" class="bg-white rounded-lg shadow p-5 sm:p-8 space-y-4">
       <h2 class="text-lg font-semibold">Ingresa con tu documento</h2>
       <div>
         <label class="block text-sm font-medium mb-1">Número de documento</label>
-        <input id="solicitar-documento" type="text" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
+        <input id="login-documento" type="text" inputmode="numeric" autocomplete="off" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
       </div>
-      <button id="btn-solicitar-otp" type="button" class="w-full px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold">Enviar código de acceso</button>
-    </section>
-
-    <!-- Verificar OTP -->
-    <section id="vista-verificar" class="hidden bg-white rounded-lg shadow p-5 sm:p-8 space-y-4">
-      <h2 class="text-lg font-semibold">Ingresa el código que enviamos a tu correo</h2>
-      <div>
-        <label class="block text-sm font-medium mb-1">Código de 4 dígitos</label>
-        <input id="verificar-codigo" type="text" maxlength="4" class="w-full rounded-lg border-slate-300 border px-3 py-2 tracking-widest text-center text-xl" />
-      </div>
-      <button id="btn-verificar-otp" type="button" class="w-full px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold">Verificar</button>
-      <button id="btn-reenviar-otp" type="button" class="w-full px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 font-medium text-sm">Volver a enviar código</button>
+      <button id="btn-login" type="button" class="w-full px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold">Ingresar</button>
     </section>
 
     <!-- Panel de cuenta -->

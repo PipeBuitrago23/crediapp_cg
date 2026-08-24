@@ -10,11 +10,16 @@ def tasa_mensual_a_fraccion(tasa_mensual_pct: Decimal) -> Decimal:
     return tasa_mensual_pct / Decimal("100")
 
 
-def _sumar_meses(fecha: date, meses: int) -> date:
+def _sumar_meses(fecha: date, meses: int, dia_objetivo: int | None = None) -> date:
+    """Suma meses calendario. Si se pasa dia_objetivo, ese es el día del mes que se
+    intenta usar (en vez del día de `fecha`), recortado al último día del mes cuando
+    el mes destino es más corto — ej. día 31 cae en 30 en abril y en 28/29 en febrero.
+    El recorte no es acumulativo: cada cuota se calcula desde dia_objetivo, así que
+    un 31 vuelve a ser 31 en el siguiente mes que sí lo tenga."""
     mes_total = fecha.month - 1 + meses
     anio = fecha.year + mes_total // 12
     mes = mes_total % 12 + 1
-    dia = min(fecha.day, monthrange(anio, mes)[1])
+    dia = min(dia_objetivo if dia_objetivo is not None else fecha.day, monthrange(anio, mes)[1])
     return date(anio, mes, dia)
 
 
@@ -41,6 +46,7 @@ def generar_tabla_amortizacion(
     tasa_mensual_pct: Decimal,
     num_cuotas: int,
     fecha_inicio: date,
+    dia_pago: int | None = None,
 ) -> list[dict]:
     """Genera la tabla de cuotas con interés simple fijo sobre el capital inicial.
 
@@ -48,6 +54,10 @@ def generar_tabla_amortizacion(
     (P * i), sin recalcular sobre saldo pendiente. La última cuota absorbe el
     residuo de redondeo del capital para que la suma cuadre exactamente con
     monto_financiado.
+
+    `fecha_inicio` marca el mes base (normalmente la fecha de venta) y `dia_pago`
+    el día del mes de vencimiento; si `dia_pago` es None se usa el día de
+    `fecha_inicio`. La primera cuota vence un mes después del mes base.
     """
     capital_mensual = calcular_capital_mensual(monto_financiado, num_cuotas)
     interes_mensual = calcular_interes_mensual(monto_financiado, tasa_mensual_pct)
@@ -65,7 +75,7 @@ def generar_tabla_amortizacion(
                 "numero_cuota": numero,
                 "monto_capital": capital,
                 "monto_interes": interes_mensual,
-                "fecha_vencimiento": _sumar_meses(fecha_inicio, numero),
+                "fecha_vencimiento": _sumar_meses(fecha_inicio, numero, dia_pago),
             }
         )
     return tabla

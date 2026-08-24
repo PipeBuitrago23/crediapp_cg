@@ -410,6 +410,10 @@ function validarPaso4() {
     mostrarError("Ingresa un número de cuotas válido.");
     return false;
   }
+  if (!Number.isInteger(diaPago) || diaPago < 1 || diaPago > 31) {
+    mostrarError("El día de pago debe ser un día del mes entre 1 y 31.");
+    return false;
+  }
   estado.tasaInteresMensual = tasa;
   estado.cuotasTotales = cuotas;
   estado.diaPago = diaPago;
@@ -531,6 +535,9 @@ function reiniciar() {
   });
   el("abono-efectivo").value = 0;
   el("abono-transferencia").value = 0;
+  // El día de pago es un input numérico (antes un <select> que el reset no tocaba),
+  // así que hay que devolverle su valor por defecto explícitamente.
+  el("credito-dia-pago").value = 5;
   el("cliente-estado").textContent = "";
   el("equipo-detalle").classList.add("hidden");
   el("retoma-form").classList.add("hidden");

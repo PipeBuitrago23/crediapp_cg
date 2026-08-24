@@ -190,13 +190,8 @@
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Día de pago mensual</label>
-            <select id="credito-dia-pago" class="w-full rounded-lg border-slate-300 border px-3 py-2">
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="15">15</option>
-              <option value="20">20</option>
-              <option value="25">25</option>
-            </select>
+            <input id="credito-dia-pago" type="number" min="1" max="31" step="1" value="5" class="w-full rounded-lg border-slate-300 border px-3 py-2" />
+            <p class="text-xs text-slate-500 mt-1">Cualquier día del 1 al 31. Los días 29, 30 y 31 se cobran el último día de los meses más cortos.</p>
           </div>
         </div>
 

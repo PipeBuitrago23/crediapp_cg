@@ -13,9 +13,11 @@ JWT_ALGORITHM = "HS256"
 EXPIRACION_ADMIN = timedelta(hours=12)
 # El portal de cliente es de solo lectura (ver saldo/cuotas, cotizar liquidación
 # anticipada) — no hay acción que mueva dinero ni cambie datos de la cuenta, así
-# que una sesión más larga prioriza no repetir el OTP en cada visita sin abrir un
-# riesgo real de fraude. 7 días balancea eso contra la ventana de exposición si el
+# que una sesión más larga evita re-autenticar en cada visita sin abrir un riesgo
+# real de fraude. 7 días balancea eso contra la ventana de exposición si el
 # dispositivo del cliente se pierde/comparte (frente a los 30 días evaluados).
+# Desde que el login es solo por documento, la sesión ya no es el eslabón débil:
+# quien tenga el documento entra cuando quiera, expire o no el token.
 EXPIRACION_CLIENTE = timedelta(days=7)
 # El vendedor muta datos igual que el admin (crea clientes, celulares, ventas), no
 # es de solo lectura como el portal de cliente — misma duración que admin, no la
